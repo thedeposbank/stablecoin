@@ -57,8 +57,12 @@ public:
 	 * when <from> == 'deposcustody', see <memo> for account name to send DUSD to
 	 * in future, when more stablecoins issued, <memo> will be '<symbol> <name>'
 	 */
-	[[eosio::on_notify("deposcustody::transfer")]]
+	[[eosio::on_notify("*::transfer")]]
 	void ontransfer(name from, name to, asset quantity, const string& memo);
+
+	// eosio.cdt bug workaround
+    [[eosio::on_notify("dummy1234512::transfer")]]
+    void dummy(name from, name to, asset quantity, const string& memo) {}
 
 private:
 
@@ -86,7 +90,7 @@ private:
 	 */
 	TABLE variable {
 		name       var_name;
-		uint64_t   value;
+		int64_t   value;
 		time_point mtime;
 
 		uint64_t primary_key()const { return var_name.value; }

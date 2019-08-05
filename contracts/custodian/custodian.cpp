@@ -4,6 +4,8 @@
  */
 
 #include <custodian.hpp>
+#include <utility.hpp>
+#include <limitations.hpp>
 #include <eosio/crypto.hpp>
 #include <eosio/print.hpp>
 #include <cctype>
@@ -16,6 +18,10 @@ ACTION custodian::transfer( name    from,
 						asset   quantity,
 						string  memo )
 {
+	print("\ngot here 0");
+	
+	check_main_switch();
+
 	check( from != to, "cannot transfer to self" );
 	require_auth( from );
 	check( is_account( to ), "to account does not exist");
@@ -78,28 +84,41 @@ ACTION custodian::mint(name user, symbol_code sym, int64_t satoshi_amount, const
 	require_auth(CUSTODIAN);
 
 	mintOrders ord(_self, sym.raw());
-	auto txid_index = ord.get_index<"btctxid"_n>();
-	auto itr = txid_index.find(txid_bin);
+
+	if(user == CUSTODIAN) {
+		// processing hedge tx from bitmex to custody
+		auto status_index = ord.get_index<"status"_n>();
+		const auto& order = status_index.get("new.bitmex"_n.value, "no new bitmex order");
+		ord.modify(order, same_payer, [&](auto& o) {
+			o.status = "processing"_n;
+			o.btc_txid = txid_bin;
+		});
+	} else {
+
+		// processing mint order
+		auto txid_index = ord.get_index<"btctxid"_n>();
+		auto itr = txid_index.find(txid_bin);
 
 #ifdef DEBUG
-	// special case for deleting mint orders: satoshi_amount == -1
-	if(satoshi_amount == -1) {
-		check(itr != txid_index.end(), "no record to erase!");
-		ord.erase(*itr);
-		return;
-	}
+		// special case for deleting mint orders: satoshi_amount == -1
+		if(satoshi_amount == -1) {
+			check(itr != txid_index.end(), "no record to erase!");
+			ord.erase(*itr);
+			return;
+		}
 #endif
 
-	check(itr == txid_index.end(), "duplicate mint!");
+		check(itr == txid_index.end(), "duplicate mint!");
 
-	ord.emplace(CUSTODIAN, [&](auto& o) {
-		o.id         = ord.available_primary_key();
-		o.user       = user;
-		o.status     = "new"_n;
-		o.btc_amount = satoshi_amount;
-		o.btc_txid   = txid_bin;
-		o.mtime      = current_time_point().time_since_epoch().count();
-	});
+		ord.emplace(CUSTODIAN, [&](auto& o) {
+			o.id         = ord.available_primary_key();
+			o.user       = user;
+			o.status     = "new"_n;
+			o.btc_amount = satoshi_amount;
+			o.btc_txid   = txid_bin;
+			o.mtime      = current_time_point().time_since_epoch().count();
+		});
+	}
 
 	asset dbtcQuantity(satoshi_amount, DBTC);
 
@@ -130,7 +149,7 @@ ACTION custodian::redeem(symbol_code sym, uint64_t order_id, const string& btc_t
 	}
 #endif
 
-	check(order.status == "new"_n, "redeem order is not new");
+	check(order.status == "new"_n || order.status == "new.bitmex"_n, "redeem order is not new");
 
 	ord.modify(order, same_payer, [&](auto& o) {
 		o.status = "processing"_n;
@@ -140,4 +159,76 @@ ACTION custodian::redeem(symbol_code sym, uint64_t order_id, const string& btc_t
 	asset dbtcQuantity(order.btc_amount, DBTC);
 
 	SEND_INLINE_ACTION(*this, retire, {{CUSTODIAN, "active"_n}}, {dbtcQuantity, btc_txid});
+}
+
+ACTION custodian::balancehedge() {
+	// do we need to authorize? it seems, no.
+	// CPU & bandwidth are paid by caller, RAM is spent only for processed orders
+
+	auto btcPrice = get_btc_price();
+
+	variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
+	double bitmexTarget = sys_vars.get("bitmex.trg"_n.value, "bitmex.trg not found").value * 1e-10;
+	double bitmexMin    = sys_vars.get("bitmex.min"_n.value, "bitmex.min not found").value * 1e-10;
+	double bitmexMax    = sys_vars.get("bitmex.max"_n.value, "bitmex.max not found").value * 1e-10;
+
+	variables periodic_vars(BANKACCOUNT, PERIODIC_SCOPE.value);
+	int64_t bitmexAmount = 1e-8 * btcPrice * periodic_vars.get("btc.bitmex"_n.value, "btc.bitmex not found").value;
+	int64_t fullAmount   = bitmexAmount + get_hedge_assets_value();
+	int64_t targetAmount = bitmexTarget * fullAmount;
+
+	if(bitmexAmount < bitmexMin * fullAmount) {
+		redeemOrders ord(_self, DBTC.code().raw());
+		auto status_index = ord.get_index<"status"_n>();
+
+		// if accepted order exists, do nothing
+		if(status_index.find("acc.bitmex"_n.value) != status_index.end())
+			return;
+		
+		int64_t orderAmount = 1e8 * (targetAmount - bitmexAmount) / btcPrice;
+		// check if new order exists already
+		auto balanceOrderItr = status_index.find("new.bitmex"_n.value);
+		if(balanceOrderItr == status_index.end()) {
+			ord.emplace(CUSTODIAN, [&](auto& o) {
+				o.id          = ord.available_primary_key();
+				o.user        = CUSTODIAN;
+				o.status      = "new.bitmex"_n;
+				o.btc_amount  = orderAmount;
+				o.btc_txid    = uint256_t();
+				o.mtime       = current_time_point().time_since_epoch().count();
+				o.btc_address = string();
+			});
+		} else {
+			ord.modify(*balanceOrderItr, same_payer, [&](auto& o) {
+				o.btc_amount  = orderAmount;
+			});
+		}
+	}
+
+	if(bitmexAmount > bitmexMax * fullAmount) {
+		mintOrders ord(_self, DBTC.code().raw());
+		auto status_index = ord.get_index<"status"_n>();
+
+		// if accepted order exists, do nothing
+		if(status_index.find("acc.bitmex"_n.value) != status_index.end())
+			return;
+
+		int64_t orderAmount = 1e8 * (bitmexAmount - targetAmount) / btcPrice;
+		// check if new order exists already
+		auto balanceOrderItr = status_index.find("new.bitmex"_n.value);
+		if(balanceOrderItr == status_index.end()) {
+			ord.emplace(CUSTODIAN, [&](auto& o) {
+				o.id          = ord.available_primary_key();
+				o.user        = CUSTODIAN;
+				o.status      = "new.bitmex"_n;
+				o.btc_amount  = orderAmount;
+				o.btc_txid    = uint256_t();
+				o.mtime       = current_time_point().time_since_epoch().count();
+			});
+		} else {
+			ord.modify(*balanceOrderItr, same_payer, [&](auto& o) {
+				o.btc_amount  = orderAmount;
+			});
+		}
+	}
 }

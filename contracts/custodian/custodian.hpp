@@ -61,6 +61,8 @@ public:
 
 	ACTION redeem(symbol_code sym, uint64_t order_id, const string& btc_txid);
 
+	ACTION balancehedge();
+
 	/**
 	 * Called by 'transfer' action notification.
 	 * Used only to prevent mistake DPS or DUSD transfers to custodian

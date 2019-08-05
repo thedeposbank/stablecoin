@@ -254,6 +254,8 @@ void token::setvar(name scope, name varname, int64_t value) {
 		require_auth(ADMINACCOUNT);
 	else if(scope == PERIODIC_SCOPE)
 		require_auth(ORACLEACC);
+	else if(scope == STAT_SCOPE)
+		require_auth(BANKACCOUNT);
 	else
 		fail("arbitrary scope is not allowed");
 

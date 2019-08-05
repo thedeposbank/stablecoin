@@ -1,4 +1,4 @@
-	#pragma once
+#pragma once
 
 using namespace eosio;
 using namespace std;
@@ -14,21 +14,21 @@ using namespace std;
 
 #define err 1e-7
 
-bool le(double x, double y){
+bool lt(double x, double y){
 	return x + err < y;
 }
 
-bool ge(double x, double y){
+bool gt(double x, double y){
 	return x - err > y;
 }
 bool eq(double x, double y){
-	return !le(x, y) && !ge(x,y);
+	return !lt(x, y) && !gt(x,y);
 }
 bool leq(double x, double y){
-	return !ge(x,y);
+	return !gt(x,y);
 }
 bool geq(double x, double y){
-	return !le(x,y);
+	return !lt(x,y);
 }
 
 int64_t get_variable(const string & _name, const name & scope){
@@ -48,7 +48,7 @@ bool is_dusd_mint(name from, name to, asset quantity, const string & memo){
 }
 
 bool is_dusd_redeem(name from, name to, asset quantity, const string & memo){
-	if(to == BANKACCOUNT && quantity.symbol == DBTC && memo == "Redeem DUSD")
+	if(to == BANKACCOUNT && quantity.symbol == DUSD && memo == "Redeem for DBTC")
 		return true;
 	return false;
 }
@@ -59,7 +59,7 @@ bool is_user_exchange(name from, name to, asset quantity, const string & memo){
 
 int64_t get_btc_price(){
 	// returns price in cents
-	int64_t value = get_variable("btcusd", PERIODIC_SCOPE) / 1000000;
+	int64_t value = get_variable("btcusd", PERIODIC_SCOPE) / 1e6;
 	return value;
 }
 
@@ -71,6 +71,8 @@ int64_t get_usd_value(asset quantity){
 		double btc_amount = 1.0 * quantity.amount / 100000000;
 		return int64_t(round(btc_amount * btc_price));
 	}
+	if(quantity.symbol == DUSD)
+		return quantity.amount;
 	fail("get_usd_value not supported with this asset");
 	return 0;
 }
@@ -91,19 +93,16 @@ int64_t get_balance(name user, const symbol token){
 
 	// default case token = DUSD
 	name emitent = BANKACCOUNT;
-	int64_t factor = 1000000;
 
 	if(token == DBTC)
-	{
 		emitent = CUSTODIAN;
-		factor = 1;
-	}
 	
 	accounts acc(emitent, user.value);
 	auto it = acc.find(token.code().raw());
+	print("\n balance ", user, it->balance);
 	if(it == acc.end())
 		return 0;
-	return it->balance.amount / factor;
+	return it->balance.amount;
 }
 
 int64_t get_hedge_assets_value(){
@@ -116,13 +115,8 @@ int64_t get_liquidity_pool_value(){
 	return get_hedge_assets_value() - get_usd_value(asset(get_balance(BITMEXACC, BTC), BTC));
 }
 
-int64_t get_critical_liq_pool_value(){
-	double btm_critical_max = 1.0 * get_variable("bitmex.max", SYSTEM_SCOPE) / 10000000000 / 2 + 0.5;
-	return int64_t(round((1 -  btm_critical_max) * get_hedge_assets_value()));
-}
-
-double get_critical_btm_share(){
-	return 0.5 * get_variable("bitmex.min", SYSTEM_SCOPE);
+double get_hard_margin(double soft_margin){
+	return 0.5 * soft_margin;
 }
 
 int64_t get_bank_assets_value(){
@@ -153,17 +147,16 @@ int64_t get_bank_capital_value(){
 	return get_balance(BANKACCOUNT, DUSD);
 }
 
-int64_t get_supply(const symbol token){
+int64_t get_supply(const symbol & token){
+	print("\ngot here 15");
 	if(token == DUSD || token == DPS){
-		stats st = stats(BANKACCOUNT, token.raw());
-		int64_t factor = token == DUSD ? 1000000 : 1;
-		return st.get(token.raw()).supply.amount / factor;
+		stats st = stats(BANKACCOUNT, token.code().raw());
+		return st.get(token.code().raw()).supply.amount;
 	}
 	if(token == DBTC){
-		stats st = stats(CUSTODIAN, token.raw());
-		return st.get(token.raw()).supply.amount;
+		stats st = stats(CUSTODIAN, token.code().raw());
+		return st.get(token.code().raw()).supply.amount;
 	}
 	fail("token of that type not supported");
 	return 0;
 }
-

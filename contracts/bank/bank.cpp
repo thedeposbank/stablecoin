@@ -41,12 +41,7 @@ ACTION bank::transfer( name    from,
 
 	if((from != BANKACCOUNT && to != BANKACCOUNT) || memo == "deny") {
 		// regular transfer, get transfer fee
-		uint64_t fee = 0;
-		variables vars(BANKACCOUNT, SYSTEM_SCOPE.value);
-		
-		auto var_itr = vars.find(("fee.transfer"_n).value);
-		if(var_itr != vars.end())
-			fee = std::round(1e-10 * quantity.amount * var_itr->value);
+		uint64_t fee = std::round(1e-10 * quantity.amount * get_variable("fee.transfer", SYSTEM_SCOPE));
 
 #ifdef DEBUG
 		auto payer = BANKACCOUNT;
@@ -72,116 +67,112 @@ ACTION bank::transfer( name    from,
 		return;
 	}
 	// here we have conversion transfer. let's check for limits
-	variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
-	variables periodic_vars(BANKACCOUNT, PERIODIC_SCOPE.value);
-	auto maxOrderSize = sys_vars.require_find("maxordersize"_n.value, "maxordersize not found")->value;
-	double btcusd = periodic_vars.require_find("btcusd"_n.value)->value * 1e-8;
+	auto maxOrderSize = get_variable("maxordersize", SYSTEM_SCOPE);
+	double btcusd = get_variable("btcusd", PERIODIC_SCOPE) * 1e-8;
 
-	if(to == BANKACCOUNT) {
-		// seems this call is not needed since bank.on_transfer makes it anyway
-		//check_main_switch();
 
-		if(quantity.symbol == DUSD) {
-			check(quantity.amount / dusdPrecision * btcusd <= maxOrderSize, "operation limit exceeded");
+	check_main_switch();
+	
 
-			if(memo == "Buy DPS") {
-				// exchange DUSD => DPS
+	if(to == BANKACCOUNT) {		
 
-				asset dusdToDevFund, dusdToReserve;
-				asset dpsQuantity = dusd2dps(quantity);
-				splitToDev(quantity, dusdToReserve, dusdToDevFund);
+		if(memo == "Buy DPS") {
+			// exchange DUSD => DPS
 
-				auto payer = from;
-				
-				// transfer DUSD
-				sub_balance(from, dusdToReserve);
-				add_balance(BANKACCOUNT, dusdToReserve, payer);
+			asset dusdToDevFund, dusdToReserve;
+			asset dpsQuantity = dusd2dps(quantity);
+			splitToDev(quantity, dusdToReserve, dusdToDevFund);
 
-				if(dusdToDevFund.amount != 0)
-					SEND_INLINE_ACTION(*this, transfer, {{from, "active"_n}}, {from, DEVELACCOUNT, dusdToDevFund, memo});
-				
-				// transfer DPS
-				SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dpsQuantity, "DPS for DUSD"});
-
-				return;
-			}
-			else {
-				auto payer = has_auth( to ) ? to : from;
-				sub_balance( from, quantity );
-				add_balance( to, quantity, payer );
-
-				asset dbtcQuantity = {dusd2satoshi(quantity), DBTC};
-
-				if(memo == "Redeem for DBTC") {
-					// exchange DUSD => DBTC
-					action(
-						permission_level{_self, "active"_n},
-						CUSTODIAN, "transfer"_n,
-						std::make_tuple(BANKACCOUNT, from, dbtcQuantity, memo)
-					).send();
-				}
-				else {
-					// exchange DUSD => BTC
-					validate_btc_address(memo, BITCOIN_TESTNET);
-					action(
-						permission_level{_self, "active"_n},
-						CUSTODIAN, "transfer"_n,
-						std::make_tuple(BANKACCOUNT, CUSTODIAN, dbtcQuantity, memo)
-					).send();
-				}
-
-				SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {quantity, memo});
-			}
-		}
-		else if(quantity.symbol == DPS) {
-			// redeem DPS for DUSD, DBTC or BTC
-
-			asset dusdQuantity = dps2dusd(quantity);
-			check(dusdQuantity.amount / dusdPrecision * btcusd <= maxOrderSize, "operation limit exceeded");
+			auto payer = from;
 			
-			auto payer = has_auth( to ) ? to : from;
-			// transfer DPS to issuer.
-			sub_balance(from, quantity);
-			add_balance(BANKACCOUNT, quantity, payer);
+			// transfer DUSD
+			sub_balance(from, dusdToReserve);
+			add_balance(BANKACCOUNT, dusdToReserve, payer);
 
-			if(memo == "Redeem for DUSD") {
-				// exchange DPS => DUSD at nominal price
-				SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dusdQuantity, "DPS for DUSD sell"});
+			if(dusdToDevFund.amount != 0)
+				SEND_INLINE_ACTION(*this, transfer, {{from, "active"_n}}, {from, DEVELACCOUNT, dusdToDevFund, memo});
+			
+			// transfer DPS
+			SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dpsQuantity, "DPS for DUSD"});
+
+			return;
+		}
+		else {
+			auto payer = has_auth( to ) ? to : from;
+			sub_balance( from, quantity );
+			add_balance( to, quantity, payer );
+
+			asset dbtcQuantity = {dusd2satoshi(quantity), DBTC};
+
+			if(memo == "Redeem for DBTC") {
+				// exchange DUSD => DBTC
+				action(
+					permission_level{_self, "active"_n},
+					CUSTODIAN, "transfer"_n,
+					std::make_tuple(BANKACCOUNT, from, dbtcQuantity, memo)
+				).send();
 			}
 			else {
-				// redeem for DBTC or BTC
-				SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {dusdQuantity, memo});
+				// exchange DUSD => BTC
+				validate_btc_address(memo, BITCOIN_TESTNET);
+				action(
+					permission_level{_self, "active"_n},
+					CUSTODIAN, "transfer"_n,
+					std::make_tuple(BANKACCOUNT, CUSTODIAN, dbtcQuantity, memo)
+				).send();
+			}
 
-				asset dbtcQuantity = {dusd2satoshi(dusdQuantity), DBTC};
+			SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {quantity, memo});
+		}
+	}
+	else if(quantity.symbol == DPS) {
+		// redeem DPS for DUSD, DBTC or BTC
 
-				if(memo == "Redeem for DBTC") {
-					// exchange DUSD => DBTC
-					action(
-						permission_level{_self, "active"_n},
-						CUSTODIAN, "transfer"_n,
-						std::make_tuple(BANKACCOUNT, from, dbtcQuantity, memo)
-					).send();
-				}
-				else {
-					// exchange DUSD => BTC
-					validate_btc_address(memo, BITCOIN_TESTNET);
-					action(
-						permission_level{_self, "active"_n},
-						CUSTODIAN, "transfer"_n,
-						std::make_tuple(BANKACCOUNT, CUSTODIAN, dbtcQuantity, memo)
-					).send();
-				}
+		asset dusdQuantity = dps2dusd(quantity);
+		check(dusdQuantity.amount / dusdPrecision * btcusd <= maxOrderSize, "operation limit exceeded");
+		
+		auto payer = has_auth( to ) ? to : from;
+		// transfer DPS to issuer.
+		sub_balance(from, quantity);
+		add_balance(BANKACCOUNT, quantity, payer);
+
+		if(memo == "Redeem for DUSD") {
+			// exchange DPS => DUSD at nominal price
+			SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dusdQuantity, "DPS for DUSD sell"});
+		}
+		else {
+			// redeem for DBTC or BTC
+			SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {dusdQuantity, memo});
+
+			asset dbtcQuantity = {dusd2satoshi(dusdQuantity), DBTC};
+
+			if(memo == "Redeem for DBTC") {
+				// exchange DUSD => DBTC
+				action(
+					permission_level{_self, "active"_n},
+					CUSTODIAN, "transfer"_n,
+					std::make_tuple(BANKACCOUNT, from, dbtcQuantity, memo)
+				).send();
+			}
+			else {
+				// exchange DUSD => BTC
+				validate_btc_address(memo, BITCOIN_TESTNET);
+				action(
+					permission_level{_self, "active"_n},
+					CUSTODIAN, "transfer"_n,
+					std::make_tuple(BANKACCOUNT, CUSTODIAN, dbtcQuantity, memo)
+				).send();
 			}
 		}
-		else fail("arbitrary transfer to bank account");
 	}
+	else fail("arbitrary transfer to bank account");
+
+	check_on_transfer(from, to, quantity, memo);
 }
 
 ACTION bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 	print("bank 'ontransfer'. self: ", get_self(), " first receiver: ", get_first_receiver());
-	check_main_switch();
-
-	check_on_transfer(from, to, quantity, memo);
+	print("bank 'ontransfer'. from: ", from.to_string(), " to: ", to.to_string(), " asset:", quantity);
 
 	if(to == BANKACCOUNT && quantity.symbol == DBTC && !is_hex256(memo)) {
 		//variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
@@ -223,18 +214,33 @@ ACTION bank::ontransfer(name from, name to, asset quantity, const string& memo) 
 		}
 		else fail("unknown token requested");
 	}
+	check_on_transfer(from, to, quantity, memo);
+	//this for check if I transfer frm thedeposbank somewhere else
+	check_on_system_change();
 }
 
 ACTION bank::issue( name to, asset quantity, string memo ) {
 	token::issue(to, quantity, memo);
 	if(quantity.symbol == DUSD && memo != "supply balancing")
+	{
 		balanceSupply();
+		check_on_system_change();
+	}
+	else
+		check_on_system_change(true);
 }
 
 ACTION bank::retire( asset quantity, string memo ) {
+	print("\n before retire");
 	token::retire(quantity, memo);
 	if(quantity.symbol == DUSD && memo != "supply balancing")
+	{
 		balanceSupply();
+		check_on_system_change();
+	}
+	else
+		check_on_system_change(true);
+	print("\n after retire");
 }
 
 ACTION bank::setvar(name scope, name varname, int64_t value) {
@@ -244,7 +250,11 @@ ACTION bank::setvar(name scope, name varname, int64_t value) {
 	// issue or retire tokens to keep supply equal to current USD value of BTC reserves
 	// do it only if reserve balances and BTC/USD rate variables are set and any of them is changed by this action
 	if( scope == PERIODIC_SCOPE && (varname == "btcusd"_n || varname == "btc.bitmex"_n))
+	{
 		balanceSupply();
+	}
+	if(scope == SYSTEM_SCOPE)
+		check_on_system_change(true); // change this to false
 }
 
 asset bank::dusd2dps(asset dusd) {
@@ -252,23 +262,20 @@ asset bank::dusd2dps(asset dusd) {
 	stats dpsStats(_self, DPS.code().raw());
 	asset dpsSupply = dpsStats.require_find(DPS.code().raw())->supply;
 
-	variables vars(BANKACCOUNT, SYSTEM_SCOPE.value);
-	double rate = dusdPrecision / dpsPrecision * 1e-8 * vars.require_find(("dps.price"_n).value, "undefined DPS sale price")->value;
+	double rate = dusdPrecision / dpsPrecision * 1e-8 * get_variable("dps.price", PERIODIC_SCOPE);
 
 	return {static_cast<int64_t>(std::round(dusd.amount / rate)), DPS};
 }
 
 asset bank::dps2dusd(asset dps) {
 	check(dps.symbol == DPS, "wrong symbol in dps2dusd()");
-	variables vars(BANKACCOUNT, SYSTEM_SCOPE.value);
 
-	auto redeemEnableTime = vars.require_find(("dps.redeem"_n).value, "undefined dps redeem enable time")->value;
+	auto redeemEnableTime = get_variable("dps.redeem", SYSTEM_SCOPE);
 	check(current_time_point().time_since_epoch().count() >= redeemEnableTime, "dps redeem not enabled");
 
 	double redeemFee = 0.0;
-	auto fee_itr = vars.find(("dps.fee"_n).value);
-	if(fee_itr != vars.end())
-		redeemFee = fee_itr->value * 1e-10;
+	auto fee_raw = get_variable("dps.fee", SYSTEM_SCOPE);
+	redeemFee = fee_raw * 1e-10;
 
 	stats dps_stats(_self, DPS.code().raw());
 	accounts issuer_balances(_self, BANKACCOUNT.value);
