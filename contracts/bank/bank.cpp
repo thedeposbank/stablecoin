@@ -104,7 +104,7 @@ ACTION bank::transfer( name    from,
 
 			asset dbtcQuantity = {dusd2satoshi(quantity), DBTC};
 
-			if(memo == "Redeem for DBTC") {
+			if(match_memo(memo, "Redeem for DBTC")) {
 				// exchange DUSD => DBTC
 				action(
 					permission_level{_self, "active"_n},
@@ -136,7 +136,7 @@ ACTION bank::transfer( name    from,
 		sub_balance(from, quantity);
 		add_balance(BANKACCOUNT, quantity, payer);
 
-		if(memo == "Redeem for DUSD") {
+		if(match_memo(memo, "Redeem for DUSD")) {
 			// exchange DPS => DUSD at nominal price
 			SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dusdQuantity, "DPS for DUSD sell"});
 		}
@@ -146,7 +146,7 @@ ACTION bank::transfer( name    from,
 
 			asset dbtcQuantity = {dusd2satoshi(dusdQuantity), DBTC};
 
-			if(memo == "Redeem for DBTC") {
+			if(match_memo(memo, "Redeem for DBTC")) {
 				// exchange DUSD => DBTC
 				action(
 					permission_level{_self, "active"_n},
@@ -194,7 +194,7 @@ ACTION bank::ontransfer(name from, name to, asset quantity, const string& memo) 
 			buyer = name(buyerStr);
 		}
 		else {
-			check(buyerStr == "Buy", "memo format for token buy: 'Buy <token name>'");
+			check(match_memo(buyerStr, "Buy"), "memo format for token buy: 'Buy <token name>'");
 			buyer = from;
 		}
 		symbol_code token(tokenStr);

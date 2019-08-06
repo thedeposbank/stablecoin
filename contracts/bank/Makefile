@@ -4,7 +4,7 @@ endif
 
 all: bank.wasm
 
-bank.wasm: bank.cpp bank.hpp ../stable.coin.hpp ../depostoken.hpp ../limitations.hpp ../utility.hpp ../limit_handlers.hpp
+bank.wasm: bank.cpp bank.hpp ../stable.coin.hpp ../depostoken.hpp ../limitations.hpp ../utility.hpp
 
 %.wasm: %.cpp
 	eosio-cpp $< $(CPPFLAGS) -o $@ -I. -I.. -O3 -abigen -contract bank

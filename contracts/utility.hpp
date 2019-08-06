@@ -10,6 +10,7 @@ using namespace std;
 #include <cmath>
 #include <string>
 #include <vector>
+#include <cctype>
 #include <stable.coin.hpp>
 
 #define err 1e-7
@@ -31,6 +32,18 @@ bool geq(double x, double y){
 	return !lt(x,y);
 }
 
+bool match_memo(const string& memo, const string& pattern, bool ignore_case = true) {
+	if(!ignore_case)
+		return memo == pattern;
+	
+	if(memo.size() != pattern.size())
+		return false;
+	for(auto i1 = memo.begin(), i2 = pattern.begin(); i1 != memo.end(); i1++, i2++)
+		if(tolower(*i1) != tolower(*i2))
+			return false;
+	return true;
+}
+
 int64_t get_variable(const string & _name, const name & scope){
 	variables table(BANKACCOUNT, scope.value);
 	return table.get(name(_name).value, (_name + string(" variable not found")).c_str()).value;
@@ -42,13 +55,13 @@ time_point get_var_upd_time(const string & _name, const name & scope){
 }
 
 bool is_dusd_mint(name from, name to, asset quantity, const string & memo){
-	if(to == BANKACCOUNT && quantity.symbol == DBTC && memo == "Buy DUSD")
+	if(to == BANKACCOUNT && quantity.symbol == DBTC && match_memo(memo, "Buy DUSD"))
 		return true;
 	return false;
 }
 
 bool is_dusd_redeem(name from, name to, asset quantity, const string & memo){
-	if(to == BANKACCOUNT && quantity.symbol == DUSD && memo == "Redeem for DBTC")
+	if(to == BANKACCOUNT && quantity.symbol == DUSD && match_memo(memo, "Redeem for DBTC"))
 		return true;
 	return false;
 }

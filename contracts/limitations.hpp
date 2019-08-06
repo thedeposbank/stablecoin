@@ -106,7 +106,7 @@ void check_capital(name from, name to, asset quantity, const string & memo){
 	int64_t dusd_supply = get_supply(DUSD);
 	int64_t order_value = get_usd_value(quantity);
 	double min_cap_share = 1.0 * get_variable("mincapshare", SYSTEM_SCOPE) / 10000000000;
-	if(ge(min_cap_share * (dusd_supply + order_value), 1.0 * bank_capital))
+	if(gt(min_cap_share * (dusd_supply + order_value), 1.0 * bank_capital))
 		fail("System needs to increase bank capital. Please, try later.");
 }
 
