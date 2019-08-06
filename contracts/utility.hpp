@@ -33,6 +33,9 @@ bool geq(double x, double y){
 }
 
 bool match_memo(const string& memo, const string& pattern, bool ignore_case = true) {
+	if(!ignore_case)
+		return memo == pattern;
+	
 	if(memo.size() != pattern.size())
 		return false;
 	for(auto i1 = memo.begin(), i2 = pattern.begin(); i1 != memo.end(); i1++, i2++)
