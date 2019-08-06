@@ -8,8 +8,10 @@
 #include <eosio/print.hpp>
 #include <cctype>
 #include <cmath>
+#include <algorithm>
 
 using namespace eosio;
+using namespace std;
 
 ACTION bank::transfer( name    from,
 						name    to,
@@ -351,7 +353,13 @@ void bank::balanceSupply() {
 
 	int64_t supplyErrorCents = st.supply.amount - targetSupplyCents;
 	if(supplyErrorCents && supplyErrorCents >= maxSupplуErrorCents) {
-		SEND_INLINE_ACTION(*this, retire, {{_self, "active"_n}}, {{supplyErrorCents, DUSD}, "supply balancing"});
+		// in order not to fail transaction, let's retire not more than we have
+		// using token::get_balance(), not ::get_balance
+		int64_t to_retire = min(supplyErrorCents, get_balance(BANKACCOUNT, BANKACCOUNT, DUSD.code()).amount);
+		if(to_retire == 0)
+			return;
+
+		SEND_INLINE_ACTION(*this, retire, {{_self, "active"_n}}, {{to_retire, DUSD}, "supply balancing"});
 	}
 	else if(supplyErrorCents && supplyErrorCents <= -maxSupplуErrorCents) {
 		SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {BANKACCOUNT, {-supplyErrorCents, DUSD}, "supply balancing"});
