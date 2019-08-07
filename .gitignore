@@ -1,2 +1,4 @@
 *.wasm
 *.abi
+test
+contracts/install.sh
