@@ -173,3 +173,37 @@ int64_t get_supply(const symbol & token){
 	fail("token of that type not supported");
 	return 0;
 }
+
+int64_t bitmex_in_process_redeem_order_btc_amount(name user) {
+	redeemOrders ord(CUSTODIAN, DBTC.code().raw());
+	auto status_index = ord.get_index<"status"_n>();
+
+	int64_t amount = 0;
+	auto lower = status_index.lower_bound("accepted"_n.value);
+	auto upper = status_index.upper_bound("accepted"_n.value);
+	if(lower != status_index.end()) {
+		do {
+			if(lower->user == user)
+				amount += lower->btc_amount;
+		} while(lower++ != upper);
+	}
+
+	return amount;
+}
+
+int64_t bitmex_in_process_mint_order_btc_amount(name user) {
+	mintOrders ord(CUSTODIAN, DBTC.code().raw());
+	auto status_index = ord.get_index<"status"_n>();
+
+	int64_t amount = 0;
+	auto lower = status_index.lower_bound("accepted"_n.value);
+	auto upper = status_index.upper_bound("accepted"_n.value);
+	if(lower != status_index.end()) {
+		do {
+			if(lower->user == user)
+				amount += lower->btc_amount;
+		} while(lower++ != upper);
+	}
+
+	return amount;
+}
