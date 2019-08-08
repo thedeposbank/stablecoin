@@ -35,9 +35,9 @@ const name SYSTEM_SCOPE("system");
 const name STAT_SCOPE("stat");
 
 #ifdef DEBUG
-const string bitmex_address("2NBMEXmdGcVYMg8PbpXdZzJNqU3zWpYmKxM");
+const std::string bitmex_address("2NBMEXmdGcVYMg8PbpXdZzJNqU3zWpYmKxM");
 #else
-const string bitmex_address("3BMEXT6jkWpAEd89T6tRJfoouRt9Ta3U46");
+const std::string bitmex_address("3BMEXT6jkWpAEd89T6tRJfoouRt9Ta3U46");
 #endif
 
 using uint256_t = checksum256;

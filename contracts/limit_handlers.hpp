@@ -33,9 +33,9 @@ void on_lack_of_liquidity(){
 	int64_t order_amount = bitmex_balance_btc_value - bitmex_target_btc_value;
 	if(order_amount > 0) {
 		action(
-			permission_level{_self, "active"_n},
-			CUSTODIAN, "withdraw"_n,
-			make_tuple(order_amount);
+			permission_level{BANKACCOUNT, "active"_n},
+			CUSTODIAN, "balancehedge"_n,
+			make_tuple(order_amount)
 		).send();
 	}
 
@@ -51,7 +51,11 @@ void on_high_leverage(){
 	int64_t bitmex_balance_btc_value = get_balance(BITMEXACC, BTC) + amount_in_process;
 	int64_t order_amount = bitmex_target_btc_value - bitmex_balance_btc_value;
 	if(order_amount > 0) {
-		SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, CUSTODIAN, {order_amount, DBTC}, bitmex_address});
+		action(
+			permission_level{BANKACCOUNT, "active"_n},
+			BANKACCOUNT, "transfer"_n,
+			make_tuple(BANKACCOUNT, CUSTODIAN, asset{order_amount, DBTC}, bitmex_address)
+		).send();
 	}
 
 	return;
