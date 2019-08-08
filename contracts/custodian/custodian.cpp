@@ -122,7 +122,7 @@ ACTION custodian::mint(name user, symbol_code sym, int64_t satoshi_amount, const
 	ord.emplace(CUSTODIAN, [&](auto& o) {
 		o.id         = ord.available_primary_key();
 		o.user       = user;
-		o.status     = "new"_n;
+		o.status     = "processing"_n;
 		o.btc_amount = satoshi_amount;
 		o.btc_txid   = txid_bin;
 		o.mtime      = current_time_point().time_since_epoch().count();

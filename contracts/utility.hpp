@@ -179,8 +179,8 @@ int64_t bitmex_in_process_redeem_order_btc_amount(name user) {
 	auto status_index = ord.get_index<"status"_n>();
 
 	int64_t amount = 0;
-	auto lower = status_index.lower_bound("accepted"_n.value);
-	auto upper = status_index.upper_bound("accepted"_n.value);
+	auto lower = status_index.lower_bound("processing"_n.value);
+	auto upper = status_index.upper_bound("processing"_n.value);
 	if(lower != status_index.end()) {
 		do {
 			if(lower->user == user)
@@ -196,8 +196,8 @@ int64_t bitmex_in_process_mint_order_btc_amount(name user) {
 	auto status_index = ord.get_index<"status"_n>();
 
 	int64_t amount = 0;
-	auto lower = status_index.lower_bound("accepted"_n.value);
-	auto upper = status_index.upper_bound("accepted"_n.value);
+	auto lower = status_index.lower_bound("processing"_n.value);
+	auto upper = status_index.upper_bound("processing"_n.value);
 	if(lower != status_index.end()) {
 		do {
 			if(lower->user == user)
