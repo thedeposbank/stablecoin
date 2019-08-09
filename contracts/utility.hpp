@@ -173,3 +173,58 @@ int64_t get_supply(const symbol & token){
 	fail("token of that type not supported");
 	return 0;
 }
+
+
+
+asset dusd2dps(asset dusd) {
+	check(dusd.symbol == DUSD, "wrong symbol in dusd2dps()");
+	stats dpsStats(BANKACCOUNT, DPS.code().raw());
+	asset dpsSupply = dpsStats.require_find(DPS.code().raw())->supply;
+
+	double rate = dusdPrecision / dpsPrecision * 1e-8 * get_variable("dps.price", PERIODIC_SCOPE);
+
+	return {static_cast<int64_t>(std::round(dusd.amount / rate)), DPS};
+}
+
+asset dps2dusd(asset dps) {
+	check(dps.symbol == DPS, "wrong symbol in dps2dusd()");
+
+	auto redeemEnableTime = get_variable("dps.redeem", SYSTEM_SCOPE);
+	check(current_time_point().time_since_epoch().count() >= redeemEnableTime, "dps redeem not enabled");
+
+	double redeemFee = 0.0;
+	auto fee_raw = get_variable("dps.fee", SYSTEM_SCOPE);
+	redeemFee = fee_raw * 1e-10;
+
+	stats dps_stats(BANKACCOUNT, DPS.code().raw());
+	accounts issuer_balances(BANKACCOUNT, BANKACCOUNT.value);
+	
+	asset reserveFund = issuer_balances.require_find(DUSD.code().raw())->balance;
+	asset dpsInCirculation = 
+		dps_stats.require_find(DPS.code().raw())->supply -
+		issuer_balances.require_find(DPS.code().raw())->balance;
+
+	double rate = ((1.0 - redeemFee) * reserveFund.amount) / dpsInCirculation.amount;
+	return {static_cast<int64_t>(std::round(rate * dps.amount)), DUSD};
+}
+
+asset satoshi2dusd(int64_t satoshi_amount) {
+	variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
+	variables periodic_vars(BANKACCOUNT, PERIODIC_SCOPE.value);
+	// "btcusd", "fee.mint" variables are stored in scale 1e8
+	double mintFee = 1e-8 * sys_vars.require_find(("fee.mint"_n).value, "fee.mint (mint fee in percent) variable not found")->value;
+	double rate = (100.0 - mintFee) * 1e-10 * periodic_vars.require_find(("btcusd"_n).value, "btcusd (exchange rate) variable not found")->value;
+	int64_t amount = std::round(rate * satoshi_amount / 1e6); // hardcode: DUSD precision is 2
+	return {amount, DUSD};
+}
+
+int64_t dusd2satoshi(asset dusd) {
+	check(dusd.symbol == DUSD, "wrong symbol in dusd2satoshi()");
+	variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
+	variables periodic_vars(BANKACCOUNT, PERIODIC_SCOPE.value);
+	// "btcusd", "fee.redeem" variables are stored in scale 1e8
+	double redeemFee = 1e-8 * sys_vars.require_find(("fee.redeem"_n).value, "fee.redeem (redemption fee) variable not found")->value;
+	double rate = (100 + redeemFee) * 1e-10 * periodic_vars.require_find(("btcusd"_n).value, "btcusd (exchange rate) variable not found")->value;
+	int64_t satoshi_amount = std::round(1e6 * dusd.amount / rate); // hardcode: DUSD precision is 2
+	return satoshi_amount;
+}

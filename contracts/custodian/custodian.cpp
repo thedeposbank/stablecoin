@@ -18,28 +18,14 @@ ACTION custodian::transfer( name    from,
 						asset   quantity,
 						string  memo )
 {
-	print("\ngot here 0");
 	
 	check_main_switch();
 
-	check( from != to, "cannot transfer to self" );
-	require_auth( from );
-	check( is_account( to ), "to account does not exist");
-	auto sym = quantity.symbol.code();
-	stats statstable( _self, sym.raw() );
-	const auto& st = statstable.get( sym.raw(), "no stats for given symbol code" );
+	check_transfer(from, to, quantity, memo);
 
-	require_recipient( from );
-	require_recipient( to );
-
-	check( quantity.is_valid(), "invalid quantity" );
-	check( quantity.amount > 0, "must transfer positive quantity" );
-	check( quantity.symbol == st.supply.symbol, "symbol precision mismatch" );
-	check( memo.size() <= 256, "memo has more than 256 bytes" );
-
-	if(to == CUSTODIAN && sym == DBTC.code()) {
+	if(to == CUSTODIAN && quantity.symbol.code() == DBTC.code()) {
 		validate_btc_address(memo, BITCOIN_TESTNET);
-		redeemOrders ord(_self, sym.raw());
+		redeemOrders ord(_self, quantity.symbol.code().raw());
 
 		ord.emplace(_self, [&](auto& o) {
 			o.id         = ord.available_primary_key();

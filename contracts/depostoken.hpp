@@ -100,6 +100,7 @@ protected:
 
 	void sub_balance( name owner, asset value );
 	void add_balance( name owner, asset value, name ram_payer );
+	void check_transfer(name from, name to, asset quantity, string memo);
 
 	/**
 	 * arbitrary data store. scopes:
@@ -112,6 +113,23 @@ protected:
 /**
  * DEFINITIONS
  */
+
+void token::check_transfer(name from, name to, asset quantity, string memo){
+	check( from != to, "cannot transfer to self" );
+	require_auth( from );
+	check( is_account( to ), "to account does not exist");
+	auto sym = quantity.symbol.code();
+	stats statstable( _self, sym.raw() );
+	const auto& st = statstable.get( sym.raw(), "no stats for given symbol code" );
+
+	require_recipient( from );
+	require_recipient( to );
+
+	check( quantity.is_valid(), "invalid quantity" );
+	check( quantity.amount > 0, "must transfer positive quantity" );
+	check( quantity.symbol == st.supply.symbol, "symbol precision mismatch" );
+	check( memo.size() <= 256, "memo has more than 256 bytes" );
+}
 
 void token::create( name issuer, asset maximum_supply )
 {

@@ -98,10 +98,16 @@ private:
 	
 	typedef eosio::multi_index< "variables"_n, variable > variables;
 
-	asset dusd2dps(asset dusd);
-	asset dps2dusd(asset dps);
-	asset satoshi2dusd(int64_t satoshi_amount);
-	int64_t dusd2satoshi(asset dusd);
 	void splitToDev(const asset& quantity, asset& toReserve, asset& toDev);
 	void balanceSupply();
+
+	void process_regular_transfer(name from, name to, asset quantity, string memo);
+	void process_service_transfer(name from, name to, asset quantity, string memo);
+	void process_redeem_DUSD_for_DPS(name from, name to, asset quantity, string memo);
+	void process_redeem_DUSD_for_DBTC(name from, name to, asset quantity, string memo);
+	void process_redeem_DUSD_for_BTC(name from, name to, asset quantity, string memo);
+	void process_redeem_DPS_for_DUSD(name from, name to, asset quantity, string memo);
+	void process_redeem_DPS_for_DBTC(name from, name to, asset quantity, string memo);
+	void process_redeem_DPS_for_BTC(name from, name to, asset quantity, string memo);
+	void check_and_auth_with_transfer(name from, name to, asset quantity, string memo);
 };
