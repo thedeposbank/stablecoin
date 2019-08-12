@@ -24,18 +24,39 @@ ACTION custodian::transfer( name    from,
 	check_transfer(from, to, quantity, memo);
 
 	if(to == CUSTODIAN && quantity.symbol.code() == DBTC.code()) {
+		asset order_quantity = quantity;
 		validate_btc_address(memo, BITCOIN_TESTNET);
 		redeemOrders ord(_self, quantity.symbol.code().raw());
 
-		ord.emplace(_self, [&](auto& o) {
-			o.id         = ord.available_primary_key();
-			o.user       = from;
-			o.status     = "new"_n;
-			o.btc_amount = quantity.amount;
-			o.btc_txid   = uint256_t();
-			o.mtime      = current_time_point().time_since_epoch().count();
-			o.btc_address = memo;
-		});
+		if(from == BANKACCOUNT) {
+			// it's hedge balancing order, let's correct order_quantity considering
+			// previous hedge balancing orders in state "new"
+			auto status_index = ord.get_index<"status"_n>();
+			int64_t orders_amount = 0;
+			auto lower = status_index.lower_bound("new"_n.value);
+			auto upper = status_index.upper_bound("new"_n.value);
+			if(lower != status_index.end()) {
+				do {
+					if(lower->user == BANKACCOUNT)
+						orders_amount += lower->btc_amount;
+				} while(lower++ != upper);
+			}
+			if(orders_amount > order_quantity.amount)
+				order_quantity.amount = 0;
+			else
+				order_quantity.amount -= orders_amount;
+		}
+
+		if(order_quantity.amount > 0)
+			ord.emplace(_self, [&](auto& o) {
+				o.id         = ord.available_primary_key();
+				o.user       = from;
+				o.status     = "new"_n;
+				o.btc_amount = order_quantity.amount;
+				o.btc_txid   = uint256_t();
+				o.mtime      = current_time_point().time_since_epoch().count();
+				o.btc_address = memo;
+			});
 	}
 
 	auto payer = has_auth( to ) ? to : from;
@@ -87,7 +108,7 @@ ACTION custodian::mint(name user, symbol_code sym, int64_t satoshi_amount, const
 	ord.emplace(CUSTODIAN, [&](auto& o) {
 		o.id         = ord.available_primary_key();
 		o.user       = user;
-		o.status     = "new"_n;
+		o.status     = "processing"_n;
 		o.btc_amount = satoshi_amount;
 		o.btc_txid   = txid_bin;
 		o.mtime      = current_time_point().time_since_epoch().count();
@@ -132,4 +153,31 @@ ACTION custodian::redeem(symbol_code sym, uint64_t order_id, const string& btc_t
 	asset dbtcQuantity(order.btc_amount, DBTC);
 
 	SEND_INLINE_ACTION(*this, retire, {{CUSTODIAN, "active"_n}}, {dbtcQuantity, btc_txid});
+}
+
+ACTION custodian::balancehedge(int64_t amount) {
+	require_auth(BANKACCOUNT);
+
+	mintOrders ord(_self, DBTC.code().raw());
+	auto status_index = ord.get_index<"status"_n>();
+	int64_t orders_amount = 0;
+	auto lower = status_index.lower_bound("new"_n.value);
+	auto upper = status_index.upper_bound("new"_n.value);
+	if(lower != status_index.end()) {
+		do {
+			if(lower->user == BANKACCOUNT)
+				orders_amount += lower->btc_amount;
+		} while(lower++ != upper);
+	}
+
+	if(amount > orders_amount) {
+		ord.emplace(CUSTODIAN, [&](auto& o) {
+			o.id         = ord.available_primary_key();
+			o.user       = BANKACCOUNT;
+			o.status     = "new"_n;
+			o.btc_amount = amount - orders_amount;
+			o.btc_txid   = uint256_t();
+			o.mtime      = current_time_point().time_since_epoch().count();
+		});
+	}
 }

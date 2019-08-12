@@ -46,6 +46,57 @@ typedef eosio::multi_index< "accounts"_n, account > accounts;
 typedef eosio::multi_index< "stat"_n, currency_stats > stats;
 typedef eosio::multi_index< "variables"_n, variable > variables;
 
+/**
+ * Mint orders table. Scope is constant, DBTC.
+ */
+TABLE mintOrder {
+	uint64_t  id;
+	name      user;
+	name      status;
+	int64_t   btc_amount;
+	uint256_t btc_txid;
+	uint64_t  mtime;
+
+	uint64_t  primary_key()const { return id; }
+	uint64_t  get_secondary_1()const { return status.value; }
+	uint256_t get_secondary_2()const { return btc_txid; }
+};
+
+typedef eosio::multi_index<
+	"mintorders"_n,
+	mintOrder,
+	indexed_by< "status"_n, const_mem_fun<mintOrder, uint64_t, &mintOrder::get_secondary_1> >,
+	indexed_by< "btctxid"_n, const_mem_fun<mintOrder, uint256_t, &mintOrder::get_secondary_2> >
+> mintOrders;
+
+/**
+ * Redeem orders table. Scope is token symbol code.
+ * Shows order statuses:
+ * 1. status "new": record added by "transfer" action when "to" is issuer. btc_txid is unknown yet.
+ * 2. status "processing": record changed by "redeem" action. btc_txid filled with provided txid.
+ * 3. status "confirmed": record changed by "setstatus" action.
+ */
+TABLE redeemOrder {
+	uint64_t  id;
+	name      user;
+	name      status;
+	int64_t   btc_amount;
+	uint256_t btc_txid;
+	uint64_t  mtime;
+	string    btc_address;
+
+	uint64_t  primary_key()const { return id; }
+	uint64_t  get_secondary_1()const { return status.value; }
+	uint256_t get_secondary_2()const { return btc_txid; }
+};
+
+typedef eosio::multi_index<
+	"redeemorders"_n,
+	redeemOrder,
+	indexed_by< "status"_n, const_mem_fun<redeemOrder, uint64_t, &redeemOrder::get_secondary_1> >,
+	indexed_by< "btctxid"_n, const_mem_fun<redeemOrder, uint256_t, &redeemOrder::get_secondary_2> >
+> redeemOrders;
+
 class token : public contract {
 public:
 	using contract::contract;

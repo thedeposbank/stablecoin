@@ -61,6 +61,9 @@ public:
 
 	ACTION redeem(symbol_code sym, uint64_t order_id, const string& btc_txid);
 
+	// initiate withdrawal from hedge account to custody. amount in satoshis
+	ACTION balancehedge(int64_t amount);
+
 	/**
 	 * Called by 'transfer' action notification.
 	 * Used only to prevent mistake DPS or DUSD transfers to custodian
