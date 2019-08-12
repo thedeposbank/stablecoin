@@ -86,6 +86,11 @@ int64_t get_usd_value(asset quantity){
 	}
 	if(quantity.symbol == DUSD)
 		return quantity.amount;
+	if(quantity.symbol == EOS){
+		double eos_price = get_variable("eosusd", PERIODIC_SCOPE) * 1e-6;
+		double eos_amount = quantity.amount * 1e-4;
+		return int64_t(round(eos_amount * eos_price));
+	}
 	fail("get_usd_value not supported with this asset");
 	return 0;
 }

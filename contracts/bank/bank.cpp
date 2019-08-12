@@ -104,6 +104,7 @@ ACTION bank::ontransfer(name from, name to, asset quantity, const string& memo) 
 		}
 		else fail("unknown token requested");
 	}
+	
 	check_on_transfer(from, to, quantity, memo);
 	//this for check if I transfer frm thedeposbank somewhere else
 	check_on_system_change();

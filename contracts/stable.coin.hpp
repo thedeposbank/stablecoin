@@ -13,6 +13,7 @@ const symbol DUSD("DUSD", 2);
 const symbol DPS("DPS", 8);
 const symbol DBTC("DBTC", 8);
 const symbol BTC("BTC", 8);
+const symbol EOS("EOS", 4);
 
 const double dusdPrecision = 1e2;
 const double dpsPrecision  = 1e8;
