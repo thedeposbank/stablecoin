@@ -42,6 +42,7 @@ const std::string bitmex_address("3BMEXT6jkWpAEd89T6tRJfoouRt9Ta3U46");
 #endif
 
 using uint256_t = checksum256;
+using dbond_id_class = symbol_code;
 
 bool fail(const char* message) {
 	check(0, message);

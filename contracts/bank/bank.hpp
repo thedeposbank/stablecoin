@@ -80,8 +80,15 @@ private:
 		uint64_t primary_key()const { return supply.symbol.code().raw(); }
 	};
 
+	TABLE authorized_dbonds_info {
+		dbond_id_class dbond;
+
+		uint64_t primary_key()const { return dbond.symbol.code().raw(); }
+	}
+
 	typedef eosio::multi_index< "accounts"_n, account > accounts;
 	typedef eosio::multi_index< "stat"_n, currency_stats > stats;
+	typedef eosio::multi_index< "authfcdbonds"_n, authorized_dbonds_info > authorized_dbonds;
 
 	/**
 	 * arbitrary data store. scopes:
