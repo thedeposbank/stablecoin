@@ -47,6 +47,8 @@ public:
 		token::delvar(scope, varname);
 	}
 
+	ACTION authdbond(name dbond_contract, dbond_id_class dbond_id);
+
 	/*
 	 * New token actions and methods
 	 */
@@ -60,9 +62,16 @@ public:
 	[[eosio::on_notify("*::transfer")]]
 	void ontransfer(name from, name to, asset quantity, const string& memo);
 
-	// eosio.cdt bug workaround
-    [[eosio::on_notify("dummy1234512::transfer")]]
-    void dummy(name from, name to, asset quantity, const string& memo) {}
+	/*
+	 * Called by 'listfcdbsale' action of 'dbonds' contract.
+	 * Used to implement selling dbonds by holders to bank.
+	 */
+	[[eosio::on_notify("*::listfcdbsale")]]
+	void onfcdblist(name seller, asset quantity, extended_asset price);
+
+	// // eosio.cdt bug workaround
+	// [[eosio::on_notify("dummy1234512::transfer")]]
+	// void dummy(name from, name to, asset quantity, const string& memo) {}
 
 private:
 
@@ -80,6 +89,7 @@ private:
 		uint64_t primary_key()const { return supply.symbol.code().raw(); }
 	};
 
+	// scope -- dbonds contract name
 	TABLE authorized_dbonds_info {
 		dbond_id_class dbond;
 

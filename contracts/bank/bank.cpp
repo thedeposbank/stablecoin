@@ -148,7 +148,28 @@ ACTION bank::setvar(name scope, name varname, int64_t value) {
 		check_on_system_change(true); // change this to false
 }
 
+ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
+	require_auth(ADMINACCOUNT);
+	authorized_dbonds dblist(_self, dbond_contract.value);
+	auto existing = dblist.find(dbond_id.raw());
+	check(existing == dblist.end(), "dbond is authorized already");
+	dblist.emplace(_self, [&](auto& db) {
+		db.dbond = dbond_id;
+	});
+	action(
+		permission_level{_self, "active"_n},
+		dbond_contract, "confirmfcdb"_n,
+		std::make_tuple(dbond_id)
+	).send();
+}
 
+void bank::onfcdblist(name seller, asset quantity, extended_asset price) {
+	dbond_id_class dbond_id = quantity.symbol.code();
+	name dbond_contract = get_first_receiver();
+	authorized_dbonds dblist(_self, dbond_contract.value);
+	const auto& authdb = dblist.get(dbond_id.raw(), "anauthorized dbond on sale?");
+	
+}
 
 void bank::splitToDev(const asset& quantity, asset& toReserve, asset& toDev) {
 	variables vars(BANKACCOUNT, SYSTEM_SCOPE.value);
