@@ -267,3 +267,15 @@ int64_t bitmex_in_process_mint_order_btc_amount(name user) {
 
 	return amount;
 }
+
+uint64_t pow(uint64_t x, uint64_t p) {
+	if(p == 0)
+		return 1;
+	if(p & 1) {
+		return x * pow(x, p-1);
+	}
+	else {
+		uint64_t res = pow(x, p/2);
+		return res * res;
+	}
+}

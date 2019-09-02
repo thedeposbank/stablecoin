@@ -93,8 +93,8 @@ private:
 	TABLE authorized_dbonds_info {
 		dbond_id_class dbond;
 
-		uint64_t primary_key()const { return dbond.symbol.code().raw(); }
-	}
+		uint64_t primary_key()const { return dbond.raw(); }
+	};
 
 	typedef eosio::multi_index< "accounts"_n, account > accounts;
 	typedef eosio::multi_index< "stat"_n, currency_stats > stats;

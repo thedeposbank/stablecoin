@@ -168,7 +168,12 @@ void bank::onfcdblist(name seller, asset quantity, extended_asset price) {
 	name dbond_contract = get_first_receiver();
 	authorized_dbonds dblist(_self, dbond_contract.value);
 	const auto& authdb = dblist.get(dbond_id.raw(), "anauthorized dbond on sale?");
-	
+	check(price.quantity.symbol == DUSD, "price is not in DUSD");
+	asset value = price.quantity;
+	value.amount = quantity.amount * price.quantity.amount /
+		pow(10, price.quantity.symbol.precision());
+	string memo = "buy fcdb " + dbond_id.to_string() + " from " + seller.to_string();
+	SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {dbond_contract, value, memo});
 }
 
 void bank::splitToDev(const asset& quantity, asset& toReserve, asset& toDev) {
