@@ -16,10 +16,7 @@
 using namespace eosio;
 using namespace std;
 
-ACTION bank::transfer( name    from,
-						name    to,
-						asset   quantity,
-						string  memo )
+ACTION bank::transfer(name from, name to, asset quantity, string memo)
 {
 	// print("transfer action. self: ", get_self(), " code: ", get_code(), "\n");
 
@@ -57,12 +54,13 @@ ACTION bank::transfer( name    from,
 	}
 	else fail("arbitrary transfer to bank account");
 
-	check_on_transfer(from, to, quantity, memo);
+	check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
 }
 
 ACTION bank::ontransfer(name from, name to, asset quantity, const string& memo) {
-	print("bank 'ontransfer'. self: ", get_self(), " first receiver: ", get_first_receiver());
-	print("bank 'ontransfer'. from: ", from.to_string(), " to: ", to.to_string(), " asset:", quantity);
+	name token_contract = get_first_receiver();
+	print("\nbank 'ontransfer'. self: ", get_self(), " first receiver: ", token_contract);
+	print("\nbank 'ontransfer'. from: ", from.to_string(), " to: ", to.to_string(), " asset:", quantity);
 
 	if(to == BANKACCOUNT && quantity.symbol == DBTC && !is_hex256(memo)) {
 		//variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
@@ -105,7 +103,7 @@ ACTION bank::ontransfer(name from, name to, asset quantity, const string& memo) 
 		else fail("unknown token requested");
 	}
 	
-	check_on_transfer(from, to, quantity, memo);
+	check_on_transfer(from, to, {quantity, token_contract}, memo);
 	//this for check if I transfer frm thedeposbank somewhere else
 	check_on_system_change();
 }

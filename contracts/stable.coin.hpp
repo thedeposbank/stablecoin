@@ -30,6 +30,7 @@ const name ADMINACCOUNT("deposadmin11");
 const name DEVELACCOUNT("deposdevelop");
 const name ORACLEACC("deposoracle1");
 const name BITMEXACC("bitmex");
+const name EOSIOTOKEN("eosio.token");
 
 const name PERIODIC_SCOPE("periodic");
 const name SYSTEM_SCOPE("system");

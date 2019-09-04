@@ -69,6 +69,21 @@ public:
 	[[eosio::on_notify("*::listfcdbsale")]]
 	void onfcdblist(name seller, asset quantity, extended_asset price);
 
+	#ifdef DEBUG
+	/*
+	 *
+	 */
+	[[eosio::on_notify("*::erase")]]
+	void ondbonderase(name owner, dbond_id_class dbond_id) {
+		name dbond_contract = get_first_receiver();
+		authorized_dbonds dblist(_self, dbond_contract.value);
+		auto existing = dblist.find(dbond_id.raw());
+		if(existing != dblist.end()) {
+			dblist.erase(existing);
+		}
+	}
+	#endif
+
 	// // eosio.cdt bug workaround
 	// [[eosio::on_notify("dummy1234512::transfer")]]
 	// void dummy(name from, name to, asset quantity, const string& memo) {}

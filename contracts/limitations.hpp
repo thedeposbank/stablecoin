@@ -35,7 +35,7 @@ void check_main_switch() {
 	}
 }
 
-void check_limits(name from, name to, asset quantity, const string& memo){
+void check_limits(name from, name to, extended_asset quantity, const string& memo){
 
 	if(is_user_exchange(from, to, quantity, memo)){
 		int64_t usd_value = get_usd_value(quantity);
@@ -51,15 +51,15 @@ void check_limits(name from, name to, asset quantity, const string& memo){
 
 		print("\navailable to sell dbtc:", available_to_sell_dbtc);
 		print("\navailable to buy dbtc:", available_to_buy_dbtc);
-		print("\norder:", quantity);
+		print("\norder:", quantity.quantity, "@", quantity.contract);
 		print("\nusd quantity:", usd_value);
 
-		if(quantity.symbol == DBTC)
+		if(quantity.quantity.symbol == DBTC && quantity.contract == CUSTODIAN)
 			check(usd_value <= available_to_sell_dbtc, "total daily volume exceeded, try later");
-		if(quantity.symbol == DUSD)
+		if(quantity.quantity.symbol == DUSD && quantity.contract == BANKACCOUNT)
 			check(usd_value <= available_to_buy_dbtc, "total daily volume exceeded, try later");
 
-		print("\n", quantity, " ", btc_price, " ", usd_value, " ", usd_order_maxlimit);
+		print("\n", quantity.quantity, "@", quantity.contract, " ", btc_price, " ", usd_value, " ", usd_order_maxlimit);
 		check(usd_value <= usd_order_maxlimit, "order maximum value exceeded, check \'maxordersize\' in \'variables\' table with scope \'system\'");
 	}
 }
@@ -159,7 +159,7 @@ void check_capital(bool internal_trigger){
 	}
 }
 
-void update_statistics_on_trade(name from, name to, asset quantity, const string & memo){
+void update_statistics_on_trade(name from, name to, extended_asset quantity, const string & memo){
 	int64_t cur_volume_used = get_variable("volumeused", STAT_SCOPE);
 	int64_t transaction_value = get_usd_value(quantity);
 	
@@ -196,7 +196,7 @@ void decay_used_volume(){
 	set_stat("volumeused", updated);
 }
 
-void check_on_transfer(name from, name to, asset quantity, const string & memo){
+void check_on_transfer(name from, name to, extended_asset quantity, const string & memo){
 	decay_used_volume();
 	check_limits(from, to, quantity, memo);
 	update_statistics_on_trade(from, to, quantity, memo);
