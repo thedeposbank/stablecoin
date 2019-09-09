@@ -12,7 +12,7 @@ using namespace std;
 #include <vector>
 #include <cctype>
 #include <stable.coin.hpp>
-// #include <dbonds.hpp> // TODO: get_usd_price() for fcdb
+#include "../../../dbonds/include/dbonds.hpp"
 
 #define err 1e-7
 
@@ -117,10 +117,9 @@ int64_t get_usd_value(extended_asset quantity) {
 		return int64_t(round(eos_amount * eos_price));
 	}
 	// TODO: "quantity" may be dbond:
-	// extended_asset dbond_price = dbond::get_price(quantity.contract, quantity.quantity.symbol.code());
-	// check(dbond_price.contract == BANKACCOUNT && dbond_price.quantity.symbol == DUSD, "get_usd_value not supported with this asset");
-	// return quantity.quantity.amount * dbond_price.quantity.amount / pow(10, quantity.quantity.symbol.precision());
-	return 0;
+	extended_asset dbond_price = dbonds::get_price(quantity.contract, quantity.quantity.symbol.code());
+	check(dbond_price.contract == BANKACCOUNT && dbond_price.quantity.symbol == DUSD, "get_usd_value not supported with this asset");
+	return quantity.quantity.amount * dbond_price.quantity.amount / pow(10, quantity.quantity.symbol.precision());
 }
 
 int64_t get_balance(name user, const symbol token) {
@@ -166,6 +165,8 @@ double get_hard_margin(double soft_margin) {
 }
 
 int64_t get_bank_assets_value() {
+	// TODO: add dbonds value
+	
 	int64_t btc_balance = get_balance(BITMEXACC, BTC) + get_balance(BANKACCOUNT, DBTC);
 	return get_usd_value(asset(btc_balance, DBTC));
 }
