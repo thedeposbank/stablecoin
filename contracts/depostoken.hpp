@@ -319,14 +319,17 @@ void token::close( name owner, const symbol& symbol )
 }
 
 void token::setvar(name scope, name varname, int64_t value) {
-	if(scope == SYSTEM_SCOPE)
-		require_auth(ADMINACCOUNT);
-	else if(scope == PERIODIC_SCOPE)
-		require_auth(ORACLEACC);
-	else if(scope == STAT_SCOPE)
-		require_auth(BANKACCOUNT);
-	else
-		fail("arbitrary scope is not allowed");
+	switch(scope) {
+		case SYSTEM_SCOPE:
+			require_auth(ADMINACCOUNT); break;
+		case PERIODIC_SCOPE:
+			require_auth(ORACLEACC); break;
+		case STAT_SCOPE:
+		case DBONDS_SCOPE:
+			require_auth(BANKACCOUNT); break;
+		default:
+			fail("arbitrary scope is not allowed");
+	}
 
 	variables vars(_self, scope.value);
 	auto var_itr = vars.find(varname.value);

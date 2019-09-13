@@ -57,51 +57,36 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 	check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
 }
 
-ACTION bank::ontransfer(name from, name to, asset quantity, const string& memo) {
+void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 	name token_contract = get_first_receiver();
-	print("\nbank 'ontransfer'. self: ", get_self(), " first receiver: ", token_contract);
-	print("\nbank 'ontransfer'. from: ", from.to_string(), " to: ", to.to_string(), " asset:", quantity);
 
-	if(to == BANKACCOUNT && quantity.symbol == DBTC && !is_hex256(memo)) {
-		//variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
-		//auto maxOrderSize = sys_vars.require_find("maxordersize"_n.value, "maxordersize not found")->value;
-		//check(quantity.amount <= maxOrderSize, "operation limit exceeded");
+	if(from == _self)
+		return;
 
-		name buyer;
-		string buyerStr, tokenStr;
-
-		size_t end = memo.find(' ');
-		buyerStr = memo.substr(0, end);
-		if(end != std::string::npos) {
-			size_t begin = memo.find_first_not_of(' ', end);
-			end = memo.find(' ', begin);
-			tokenStr = memo.substr(begin, end);
-		}
-
-		if(from == CUSTODIAN) {
-			buyer = name(buyerStr);
-		}
-		else {
-			check(match_memo(buyerStr, "Buy"), "memo format for token buy: 'Buy <token name>'");
-			buyer = from;
-		}
-		symbol_code token(tokenStr);
-		asset dusdQuantity = satoshi2dusd(quantity.amount);
-
-		if(token == DUSD.code()) {
-			SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {buyer, dusdQuantity, "DUSD for DBTC"});
-		}
-		else if(token == DPS.code()) {
-			asset dusdToDevFund, dusdToReserve;
-			asset dpsQuantity = dusd2dps(dusdQuantity);
-			splitToDev(dusdQuantity, dusdToReserve, dusdToDevFund);
-
-			SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, dusdQuantity, "DPS for DBTC"});
-			SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, DEVELACCOUNT, dusdToDevFund, "DPS for DBTC"});
-			SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, buyer, dpsQuantity, "DPS for DBTC"});
-		}
-		else fail("unknown token requested");
+	// if I recieve a dbond as collateral (payment was sent earlier)
+	if(is_dbond_contract(token_contract)){
+		balanceSupply();
 	}
+	// if DUSD mint request
+	else if(is_dusd_mint_transfer(token_contract, from, quantity, memo)) {
+		string buy_str, token_str;
+		split_memo(memo, buy_str, token_str);
+		// if request from user with via web-site with custodian involved
+		if(from == CUSTODIAN) {
+			process_mint_DUSD_for_DBTC(name{buy_str}, quantity);
+		}
+		// if on-chain request from user
+		else {
+			check(match_memo(buy_str, "buy"), "memo format for token buy: 'Buy <token name>'");
+			process_mint_DUSD_for_DBTC(from, quantity);
+		}
+	}
+	// if technical internal transaction (ex. rebalancing portfolio)
+	else if(is_technical_transfer(token_contract, from, quantity, memo)) {
+		balanceSupply();
+	}
+	else
+		fail("transfer not allowed");
 	
 	check_on_transfer(from, to, {quantity, token_contract}, memo);
 	//this for check if I transfer frm thedeposbank somewhere else
@@ -161,7 +146,7 @@ ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
 	).send();
 }
 
-void bank::onfcdblist(name seller, asset quantity, extended_asset price) {
+void bank::onfcdbtrade(name seller, name buyer, asset quantity, extended_asset price) {
 	dbond_id_class dbond_id = quantity.symbol.code();
 	name dbond_contract = get_first_receiver();
 	authorized_dbonds dblist(_self, dbond_contract.value);
@@ -188,27 +173,29 @@ void bank::splitToDev(const asset& quantity, asset& toReserve, asset& toDev) {
 void bank::balanceSupply() {
 	// TODO: consider in-flight redeem transactions to bitmex account
 
-	variables vars(_self, PERIODIC_SCOPE.value);
+	// variables vars(_self, PERIODIC_SCOPE.value);
 
-	auto itr = vars.find("btc.bitmex"_n.value);
-	if(itr == vars.end()) return;
-	int64_t bitmexSatoshis = itr->value;
+	// auto itr = vars.find("btc.bitmex"_n.value);
+	// if(itr == vars.end()) return;
+	// int64_t bitmexSatoshis = itr->value;
 
-	itr = vars.find("btcusd"_n.value);
-	if(itr == vars.end()) return;
+	// itr = vars.find("btcusd"_n.value);
+	// if(itr == vars.end()) return;
 
-	accounts accnt(CUSTODIAN, BANKACCOUNT.value);
-	auto accnt_itr = accnt.find(DBTC.code().raw());
-	if(accnt_itr == accnt.end()) return;
+	// accounts accnt(CUSTODIAN, BANKACCOUNT.value);
+	// auto accnt_itr = accnt.find(DBTC.code().raw());
+	// if(accnt_itr == accnt.end()) return;
 
 	// hardcode: DUSD and BTC precision difference is -6, BTC/USD rate is 8 digits up
-	int64_t targetSupplyCents = std::round(1e-14 * (accnt_itr->balance.amount + bitmexSatoshis) * itr->value);
+	// int64_t targetSupplyCents = std::round(1e-14 * (accnt_itr->balance.amount + bitmexSatoshis) * itr->value);
+	int64_t targetSupplyCents = get_bank_assets_value();
 
 	variables sysvars(_self, SYSTEM_SCOPE.value);
 
 	int64_t maxSupplуErrorCents = 0;
-	itr = sysvars.find("maxsupperror"_n.value);
-	if(itr != sysvars.end()) maxSupplуErrorCents = itr->value / 1000000;
+	auto itr = sysvars.find("maxsupperror"_n.value);
+	if(itr != sysvars.end())
+		maxSupplуErrorCents = itr->value / 1000000;
 
 	stats statstable(_self, DUSD.code().raw());
 	auto& st = statstable.get(DUSD.code().raw());

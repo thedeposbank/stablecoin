@@ -66,8 +66,8 @@ public:
 	 * Called by 'listfcdbsale' action of 'dbonds' contract.
 	 * Used to implement selling dbonds by holders to bank.
 	 */
-	[[eosio::on_notify("*::listfcdbsale")]]
-	void onfcdblist(name seller, asset quantity, extended_asset price);
+	[[eosio::on_notify("*::lsfcdbtrade")]]
+	void onfcdbtrade(name seller, name buyer, asset quantity, extended_asset price);
 
 	#ifdef DEBUG
 	/*
@@ -119,6 +119,7 @@ private:
 	 * arbitrary data store. scopes:
 	 *   "periodic" -- for setting by oracles
 	 *   "system" -- for setting by admin
+	 *   "dbonds" -- for list of contracts, managing dbonds
 	 */
 	TABLE variable {
 		name       var_name;
@@ -142,4 +143,6 @@ private:
 	void process_redeem_DPS_for_DBTC(name from, name to, asset quantity, string memo);
 	void process_redeem_DPS_for_BTC(name from, name to, asset quantity, string memo);
 	void check_and_auth_with_transfer(name from, name to, asset quantity, string memo);
+	void process_mint_DUSD_for_DBTC(name buyer, asset dbtc_quantity);
+	void process_mint_DPS_for_DBTC(name buyer, asset dbtc_quantity);
 };

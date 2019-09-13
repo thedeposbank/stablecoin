@@ -12,7 +12,7 @@ using namespace std;
 #include <vector>
 #include <cctype>
 #include <stable.coin.hpp>
-#include "../../../dbonds/include/dbonds.hpp"
+#include "dbonds_tables.hpp"
 
 #define err 1e-7
 
@@ -43,6 +43,30 @@ bool match_memo(const string& memo, const string& pattern, bool ignore_case = tr
 		if(tolower(*i1) != tolower(*i2))
 			return false;
 	return true;
+}
+
+void split_memo(const string& memo, string& word1, string& word2) {
+	size_t end = memo.find(' ');
+	word1 = memo.substr(0, end);
+	word2.clear();
+	if(end != std::string::npos) {
+		size_t begin = memo.find_first_not_of(' ', end);
+		end = memo.find(' ', begin);
+		word2 = memo.substr(begin, end);
+	}
+}
+
+bool is_dusd_mint_transfer(name token_contract, name from, asset quantity, const string& memo) {
+	if(memo.size() < 5)
+		return false;
+	return
+		token_contract == CUSTODIAN &&
+		quantity.symbol == DBTC &&
+		memo.substr(memo.size() - 5) == " DUSD";
+}
+
+bool is_technical_transfer(name token_contract, name from, asset quantity, const string& memo) {
+	return token_contract == CUSTODIAN && quantity.symbol == DBTC;
 }
 
 int64_t get_variable(const string & _name, const name & scope) {
@@ -164,11 +188,41 @@ double get_hard_margin(double soft_margin) {
 	return 0.5 * soft_margin;
 }
 
+bool is_dbond_contract(name contract) {
+	variables dbonds_contracts(BANKACCOUNT, DBONDS_SCOPE.value);
+	auto existing = dbonds_contracts.find(contract.value);
+	return existing != dbonds_contracts.end();
+}
+
+int64_t get_dbonds_assets_value() {
+	int64_t result = 0;
+	variables dbonds_contracts(BANKACCOUNT, DBONDS_SCOPE.value);
+	// iterate over dbonds contracts
+	for(const auto& dbonds_contract : dbonds_contracts) {
+		vector<asset> dbond_assets;
+		dbonds::get_holder_dbonds(dbonds_contract.var_name, BANKACCOUNT, dbond_assets);
+		int64_t one_contract_dbonds_value = 0;
+		// iterate over dbonds owned by bank
+		for(const auto& db : dbond_assets) {
+			extended_asset price = dbonds::get_price(dbonds_contract.var_name, db.symbol.code());
+			if(price.contract == BANKACCOUNT && price.quantity.symbol == DUSD)
+				one_contract_dbonds_value += db.amount * price.quantity.amount / pow(10, db.symbol.precision());
+		}
+		// save value of all dbonds for each dbonds contract
+		dbonds_contracts.modify(dbonds_contract, BANKACCOUNT, [&](auto& v) {
+			v.value = one_contract_dbonds_value;
+			v.mtime = current_time_point();
+		});
+		result += one_contract_dbonds_value;
+	}
+	return result;
+}
+
 int64_t get_bank_assets_value() {
-	// TODO: add dbonds value
-	
+	// calculate BTC value
 	int64_t btc_balance = get_balance(BITMEXACC, BTC) + get_balance(BANKACCOUNT, DBTC);
-	return get_usd_value(asset(btc_balance, DBTC));
+
+	return get_usd_value(asset(btc_balance, DBTC)) + get_dbonds_assets_value();
 }
 
 void set_stat(const string & stat, int64_t value) {

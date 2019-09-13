@@ -32,9 +32,10 @@ const name ORACLEACC("deposoracle1");
 const name BITMEXACC("bitmex");
 const name EOSIOTOKEN("eosio.token");
 
-const name PERIODIC_SCOPE("periodic");
-const name SYSTEM_SCOPE("system");
-const name STAT_SCOPE("stat");
+constexpr name PERIODIC_SCOPE = name{"periodic"};
+constexpr name SYSTEM_SCOPE   = name{"system"};
+constexpr name STAT_SCOPE     = name{"stat"};
+constexpr name DBONDS_SCOPE   = name{"dbonds"};
 
 #ifdef DEBUG
 const std::string bitmex_address("2NBMEXmdGcVYMg8PbpXdZzJNqU3zWpYmKxM");
