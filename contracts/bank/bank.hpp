@@ -66,8 +66,8 @@ public:
 	 * Called by 'listfcdbsale' action of 'dbonds' contract.
 	 * Used to implement selling dbonds by holders to bank.
 	 */
-	[[eosio::on_notify("*::lsfcdbtrade")]]
-	void onfcdbtrade(name seller, name buyer, asset quantity, extended_asset price);
+	[[eosio::on_notify("*::listprivord")]]
+	void on_fcdb_trade_request(name seller, name buyer, asset quantity, extended_asset price);
 
 	#ifdef DEBUG
 	/*

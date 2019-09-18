@@ -146,7 +146,7 @@ ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
 	).send();
 }
 
-void bank::onfcdbtrade(name seller, name buyer, asset quantity, extended_asset price) {
+void bank::on_fcdb_trade_request(name seller, name buyer, asset quantity, extended_asset price) {
 	dbond_id_class dbond_id = quantity.symbol.code();
 	name dbond_contract = get_first_receiver();
 	authorized_dbonds dblist(_self, dbond_contract.value);
