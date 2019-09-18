@@ -12,7 +12,7 @@ using namespace std;
 #include <vector>
 #include <cctype>
 #include <stable.coin.hpp>
-#include "dbonds_tables.hpp"
+#include <dbonds_tables.hpp>
 
 #define err 1e-7
 
@@ -43,6 +43,11 @@ bool match_memo(const string& memo, const string& pattern, bool ignore_case = tr
 		if(tolower(*i1) != tolower(*i2))
 			return false;
 	return true;
+}
+
+
+uint128_t concat128(uint64_t x, uint64_t y){
+	return ((uint128_t)x << 64) + (uint128_t)y;
 }
 
 void split_memo(const string& memo, string& word1, string& word2) {

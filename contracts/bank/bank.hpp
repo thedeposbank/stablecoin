@@ -67,7 +67,7 @@ public:
 	 * Used to implement selling dbonds by holders to bank.
 	 */
 	[[eosio::on_notify("*::listprivord")]]
-	void on_fcdb_trade_request(name seller, name buyer, asset quantity, extended_asset price);
+	void on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buyer, extended_asset recieved_asset, bool is_sell);
 
 	#ifdef DEBUG
 	/*
@@ -104,9 +104,10 @@ private:
 		uint64_t primary_key()const { return supply.symbol.code().raw(); }
 	};
 
-	// scope -- dbonds contract name
+	// scope -- _self.value
 	TABLE authorized_dbonds_info {
 		dbond_id_class dbond;
+		name contract;
 
 		uint64_t primary_key()const { return dbond.raw(); }
 	};

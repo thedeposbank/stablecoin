@@ -15,6 +15,7 @@
 
 using namespace eosio;
 using namespace std;
+using namespace dbonds;
 
 ACTION bank::transfer(name from, name to, asset quantity, string memo)
 {
@@ -133,11 +134,12 @@ ACTION bank::setvar(name scope, name varname, int64_t value) {
 
 ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
 	require_auth(ADMINACCOUNT);
-	authorized_dbonds dblist(_self, dbond_contract.value);
+	authorized_dbonds dblist(_self, _self.value);
 	auto existing = dblist.find(dbond_id.raw());
-	check(existing == dblist.end(), "dbond is authorized already");
+	check(existing == dblist.end(), "dbond with this dbond_id is authorized already");
 	dblist.emplace(_self, [&](auto& db) {
 		db.dbond = dbond_id;
+		db.contract = dbond_contract;
 	});
 	action(
 		permission_level{_self, "active"_n},
@@ -146,17 +148,46 @@ ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
 	).send();
 }
 
-void bank::on_fcdb_trade_request(name seller, name buyer, asset quantity, extended_asset price) {
-	dbond_id_class dbond_id = quantity.symbol.code();
-	name dbond_contract = get_first_receiver();
-	authorized_dbonds dblist(_self, dbond_contract.value);
-	const auto& authdb = dblist.get(dbond_id.raw(), "anauthorized dbond on sale?");
-	check(price.quantity.symbol == DUSD, "price is not in DUSD");
-	asset value = price.quantity;
-	value.amount = quantity.amount * price.quantity.amount /
-		pow(10, price.quantity.symbol.precision());
-	string memo = "buy fcdb " + dbond_id.to_string() + " from " + seller.to_string();
-	SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {dbond_contract, value, memo});
+void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buyer, extended_asset recieved_asset, bool is_sell) {
+	authorized_dbonds dblist(_self, _self.value);
+	name dbond_contract = dblist.get(dbond_id.raw(), "unauthorized dbond").contract;
+
+
+
+	fc_dbond_orders fcdb_orders(_self, dbond_id.raw());
+	auto fcdb_peers_index = fcdb_orders.get_index<"peers"_n>();
+	const auto& fcdb_order = fcdb_peers_index.get(concat128(seller.value, buyer.value), "no order for this dbond_id, seller and buyer");
+
+	extended_asset need_to_send;
+	if(is_sell){
+		need_to_send = fcdb_order.recieved_payment; // initialize extended asset
+		need_to_send.quantity.amount = int64_t(1.0 * recieved_asset.quantity.amount / pow(10, recieved_asset.quantity.symbol.precision()) *
+		 	fcdb_order.price.quantity.amount + 0.5);
+
+		string memo = "buy " + dbond_id.to_string() + " from " + seller.to_string();
+		SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {dbond_contract, need_to_send.quantity, memo});
+	}
+	else{
+		need_to_send = extended_asset(fcdb_order.recieved_quantity, dbond_contract);
+		
+		need_to_send.quantity.amount = int64_t(1.0 * recieved_asset.quantity.amount / pow(10, recieved_asset.quantity.symbol.precision()) /
+		 	fcdb_order.price.quantity.amount + 0.5);
+
+		accounts acc(dbond_contract, _self.value);
+		auto row = acc.find(need_to_send.quantity.symbol.code().raw());
+		if(row == acc.end())
+			check(false, "no such dbond on balance");
+		else
+			need_to_send = min(need_to_send, extended_asset(row->balance, need_to_send.contract));
+		
+
+		string memo = "sell " + dbond_id.to_string() + " to " + seller.to_string();
+		action(
+			permission_level{_self, "active"_n},
+			dbond_contract, "transfer"_n,
+			std::make_tuple(dbond_id)
+		).send();
+	}
 }
 
 void bank::splitToDev(const asset& quantity, asset& toReserve, asset& toDev) {
