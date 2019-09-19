@@ -10,6 +10,11 @@ using namespace std;
 using namespace eosio;
 
 namespace dbonds {
+
+	uint128_t concat128(uint64_t x, uint64_t y) {
+		return ((uint128_t)x << 64) + (uint128_t)y;
+	}
+
 	// scope: same as primary key (dbond id)
 	struct currency_stats {
 		asset          supply;
@@ -51,7 +56,7 @@ namespace dbonds {
 	// };
 
 	// scope: dbond_id
-	TABLE fc_dbond_order_struct {
+	struct fc_dbond_order_struct {
 	    name           seller;
 	    name           buyer;
 	    extended_asset recieved_payment;
@@ -59,9 +64,9 @@ namespace dbonds {
 	    extended_asset price;
 
 	    uint64_t primary_key() const { return seller.value; }
-	    uint128_t secondary_key_1() const { return ((uint128_t)seller.value << 64) + (uint128_t)buyer.value; }
+	    uint128_t secondary_key_1() const { return concat128(seller.value, buyer.value); }
 
-	  };
+	};
 
 	using stats             = multi_index< "stat"_n, currency_stats >;
 	using accounts          = multi_index< "accounts"_n, account >;
@@ -69,9 +74,10 @@ namespace dbonds {
 	// using cc_dbond_index = multi_index< "ccdbond"_n, cc_dbond_stats >;
 	// using nc_dbond_index = multi_index< "ncdbond"_n, nc_dbond_stats >;
 	// using fc_dbond_orders   = multi_index< "fcdborders"_n, fc_dbond_order_struct >;
-	using fc_dbond_orders   = multi_index< "fcdborders"_n,
-	    									fc_dbond_order_struct,
-	    									indexed_by< "peers"_n, const_mem_fun<fc_dbond_order_struct, uint128_t, &fc_dbond_order_struct::secondary_key_1> > >;
+	using fc_dbond_orders   = multi_index<
+		"fcdborders"_n,
+	    fc_dbond_order_struct,
+	    indexed_by< "peers"_n, const_mem_fun<fc_dbond_order_struct, uint128_t, &fc_dbond_order_struct::secondary_key_1> > >;
 
 	extended_asset get_price(name dbonds_contract, dbond_id_class dbond_id) {
 		stats statstable(dbonds_contract, dbond_id.raw());

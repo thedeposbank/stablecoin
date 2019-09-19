@@ -41,6 +41,10 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 			process_redeem_DUSD_for_DPS(from, to, quantity, memo);
 		else if(match_memo(memo, "Redeem for DBTC"))
 			process_redeem_DUSD_for_DBTC(from, to, quantity, memo);
+#ifdef DEBUG
+		else if(match_memo(memo, "debug"))
+			process_regular_transfer(from, to, quantity, memo);
+#endif
 		else
 			process_redeem_DUSD_for_BTC(from, to, quantity, memo);
 	}
@@ -50,6 +54,10 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 			process_redeem_DPS_for_DUSD(from, to, quantity, memo);
 		else if(match_memo(memo, "Redeem for DBTC"))
 			process_redeem_DPS_for_DBTC(from, to, quantity, memo);
+#ifdef DEBUG
+		else if(match_memo(memo, "debug"))
+			process_regular_transfer(from, to, quantity, memo);
+#endif
 		else
 			process_redeem_DPS_for_BTC(from, to, quantity, memo);
 	}
@@ -152,11 +160,12 @@ void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buye
 	authorized_dbonds dblist(_self, _self.value);
 	name dbond_contract = dblist.get(dbond_id.raw(), "unauthorized dbond").contract;
 
+	if(!is_sell) {
+	}
 
-
-	fc_dbond_orders fcdb_orders(_self, dbond_id.raw());
+	fc_dbond_orders fcdb_orders(dbond_contract, dbond_id.raw());
 	auto fcdb_peers_index = fcdb_orders.get_index<"peers"_n>();
-	const auto& fcdb_order = fcdb_peers_index.get(concat128(seller.value, buyer.value), "no order for this dbond_id, seller and buyer");
+	const auto& fcdb_order = fcdb_peers_index.get(dbonds::concat128(seller.value, buyer.value), "no order for this dbond_id, seller and buyer");
 
 	extended_asset need_to_send;
 	if(is_sell){
@@ -181,11 +190,12 @@ void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buye
 			need_to_send = min(need_to_send, extended_asset(row->balance, need_to_send.contract));
 		
 
-		string memo = "sell " + dbond_id.to_string() + " to " + seller.to_string();
+		string memo = string{"sell "} + dbond_id.to_string() + string{" to "} + seller.to_string();
+		
 		action(
 			permission_level{_self, "active"_n},
 			dbond_contract, "transfer"_n,
-			std::make_tuple(dbond_id)
+			std::make_tuple(_self, dbond_contract, need_to_send, memo)
 		).send();
 	}
 }
