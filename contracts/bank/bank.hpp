@@ -110,11 +110,15 @@ private:
 		name contract;
 
 		uint64_t primary_key()const { return dbond.raw(); }
+		uint64_t secondary_key_1()const { return contract.value; }
 	};
 
 	typedef eosio::multi_index< "accounts"_n, account > accounts;
 	typedef eosio::multi_index< "stat"_n, currency_stats > stats;
-	typedef eosio::multi_index< "authfcdbonds"_n, authorized_dbonds_info > authorized_dbonds;
+	typedef eosio::multi_index<
+		"authfcdbonds"_n,
+		authorized_dbonds_info,
+		indexed_by< "contracts"_n, const_mem_fun<authorized_dbonds_info, uint64_t, &authorized_dbonds_info::secondary_key_1> > > authorized_dbonds;
 
 	/**
 	 * arbitrary data store. scopes:
@@ -146,4 +150,5 @@ private:
 	void check_and_auth_with_transfer(name from, name to, asset quantity, string memo);
 	void process_mint_DUSD_for_DBTC(name buyer, asset dbtc_quantity);
 	void process_mint_DPS_for_DBTC(name buyer, asset dbtc_quantity);
+	bool is_authdbond_contract(name who);
 };

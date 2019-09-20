@@ -5,11 +5,12 @@
 
 #include <bank.hpp>
 #include <process_exchanges.hpp>
+#include <utility.hpp>
 
 #include <eosio/crypto.hpp>
 #include <eosio/print.hpp>
 #include <cctype>
-#include <cmath>
+// #include <cmath>
 #include <algorithm>
 
 
@@ -41,6 +42,8 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 			process_redeem_DUSD_for_DPS(from, to, quantity, memo);
 		else if(match_memo(memo, "Redeem for DBTC"))
 			process_redeem_DUSD_for_DBTC(from, to, quantity, memo);
+		else if(is_authdbond_contract(from))
+			process_regular_transfer(from, to, quantity, memo);
 #ifdef DEBUG
 		else if(match_memo(memo, "debug"))
 			process_regular_transfer(from, to, quantity, memo);
@@ -160,9 +163,6 @@ void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buye
 	authorized_dbonds dblist(_self, _self.value);
 	name dbond_contract = dblist.get(dbond_id.raw(), "unauthorized dbond").contract;
 
-	if(!is_sell) {
-	}
-
 	fc_dbond_orders fcdb_orders(dbond_contract, dbond_id.raw());
 	auto fcdb_peers_index = fcdb_orders.get_index<"peers"_n>();
 	const auto& fcdb_order = fcdb_peers_index.get(dbonds::concat128(seller.value, buyer.value), "no order for this dbond_id, seller and buyer");
@@ -173,14 +173,14 @@ void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buye
 		need_to_send.quantity.amount = int64_t(1.0 * recieved_asset.quantity.amount / pow(10, recieved_asset.quantity.symbol.precision()) *
 		 	fcdb_order.price.quantity.amount + 0.5);
 
-		string memo = "buy " + dbond_id.to_string() + " from " + seller.to_string();
+		string memo = string{"buy "} + dbond_id.to_string() + string{" from "} + seller.to_string();
 		SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {dbond_contract, need_to_send.quantity, memo});
 	}
 	else{
 		need_to_send = extended_asset(fcdb_order.recieved_quantity, dbond_contract);
 		
-		need_to_send.quantity.amount = int64_t(1.0 * recieved_asset.quantity.amount / pow(10, recieved_asset.quantity.symbol.precision()) /
-		 	fcdb_order.price.quantity.amount + 0.5);
+		need_to_send.quantity.amount = int64_t(1.0 * recieved_asset.quantity.amount / fcdb_order.price.quantity.amount *
+			pow(10, need_to_send.quantity.symbol.precision()) + 0.5);
 
 		accounts acc(dbond_contract, _self.value);
 		auto row = acc.find(need_to_send.quantity.symbol.code().raw());
@@ -188,14 +188,12 @@ void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buye
 			check(false, "no such dbond on balance");
 		else
 			need_to_send = min(need_to_send, extended_asset(row->balance, need_to_send.contract));
-		
 
-		string memo = string{"sell "} + dbond_id.to_string() + string{" to "} + seller.to_string();
-		
+		string memo = string{"sell "} + dbond_id.to_string() + string{" to "} + buyer.to_string();
 		action(
 			permission_level{_self, "active"_n},
 			dbond_contract, "transfer"_n,
-			std::make_tuple(_self, dbond_contract, need_to_send, memo)
+			std::make_tuple(_self, dbond_contract, need_to_send.quantity, memo)
 		).send();
 	}
 }
@@ -254,4 +252,11 @@ void bank::balanceSupply() {
 	else if(supplyErrorCents && supplyErrorCents <= -maxSupplуErrorCents) {
 		SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {BANKACCOUNT, {-supplyErrorCents, DUSD}, "supply balancing"});
 	}
+}
+
+bool bank::is_authdbond_contract(name who) {
+	authorized_dbonds authdbonds(_self, _self.value);
+	auto authdbonds_contracts = authdbonds.get_index<"contracts"_n>();
+	auto existing = authdbonds_contracts.find(who.value);
+	return existing != authdbonds_contracts.end();
 }
