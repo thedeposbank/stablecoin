@@ -47,6 +47,8 @@ public:
 		token::delvar(scope, varname);
 	}
 
+	ACTION authdbond(name dbond_contract, dbond_id_class dbond_id);
+
 	/*
 	 * New token actions and methods
 	 */
@@ -60,9 +62,31 @@ public:
 	[[eosio::on_notify("*::transfer")]]
 	void ontransfer(name from, name to, asset quantity, const string& memo);
 
-	// eosio.cdt bug workaround
-    [[eosio::on_notify("dummy1234512::transfer")]]
-    void dummy(name from, name to, asset quantity, const string& memo) {}
+	/*
+	 * Called by 'listfcdbsale' action of 'dbonds' contract.
+	 * Used to implement selling dbonds by holders to bank.
+	 */
+	[[eosio::on_notify("*::listprivord")]]
+	void on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buyer, extended_asset recieved_asset, bool is_sell);
+
+	#ifdef DEBUG
+	/*
+	 *
+	 */
+	[[eosio::on_notify("*::erase")]]
+	void ondbonderase(name owner, dbond_id_class dbond_id) {
+		name dbond_contract = get_first_receiver();
+		authorized_dbonds dblist(_self, _self.value);
+		auto existing = dblist.find(dbond_id.raw());
+		if(existing != dblist.end()) {
+			dblist.erase(existing);
+		}
+	}
+	#endif
+
+	// // eosio.cdt bug workaround
+	// [[eosio::on_notify("dummy1234512::transfer")]]
+	// void dummy(name from, name to, asset quantity, const string& memo) {}
 
 private:
 
@@ -80,13 +104,23 @@ private:
 		uint64_t primary_key()const { return supply.symbol.code().raw(); }
 	};
 
+	// scope -- _self.value
+	TABLE authorized_dbonds_info {
+		dbond_id_class dbond;
+		name contract;
+
+		uint64_t primary_key()const { return dbond.raw(); }
+	};
+
 	typedef eosio::multi_index< "accounts"_n, account > accounts;
 	typedef eosio::multi_index< "stat"_n, currency_stats > stats;
+	typedef eosio::multi_index< "authfcdbonds"_n, authorized_dbonds_info > authorized_dbonds;
 
 	/**
 	 * arbitrary data store. scopes:
 	 *   "periodic" -- for setting by oracles
 	 *   "system" -- for setting by admin
+	 *   "dbonds" -- for list of contracts, managing dbonds
 	 */
 	TABLE variable {
 		name       var_name;
@@ -110,4 +144,6 @@ private:
 	void process_redeem_DPS_for_DBTC(name from, name to, asset quantity, string memo);
 	void process_redeem_DPS_for_BTC(name from, name to, asset quantity, string memo);
 	void check_and_auth_with_transfer(name from, name to, asset quantity, string memo);
+	void process_mint_DUSD_for_DBTC(name buyer, asset dbtc_quantity);
+	void process_mint_DPS_for_DBTC(name buyer, asset dbtc_quantity);
 };

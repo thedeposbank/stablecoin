@@ -133,3 +133,20 @@ void bank::process_redeem_DPS_for_BTC(name from, name to, asset quantity, string
 
 	asset dbtcQuantity = {dusd2satoshi(dusdQuantity), DBTC};
 }
+
+void bank::process_mint_DPS_for_DBTC(name buyer, asset dbtc_quantity) {
+	asset dusd_quantity = satoshi2dusd(dbtc_quantity.amount);
+	asset dusd_to_dev_fund, dusd_to_capital;
+	asset dps_quantity = dusd2dps(dusd_quantity);
+	splitToDev(dusd_quantity, dusd_to_capital, dusd_to_dev_fund);
+
+	SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, dusd_quantity, "DPS for DBTC"});
+	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, DEVELACCOUNT, dusd_to_dev_fund, "DPS for DBTC"});
+	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, buyer, dps_quantity, "DPS for DBTC"});
+
+}
+
+void bank::process_mint_DUSD_for_DBTC(name buyer, asset dbtc_quantity) {
+	asset dusd_quantity = satoshi2dusd(dbtc_quantity.amount);
+	SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {buyer, dusd_quantity, "DUSD for DBTC"});
+}
