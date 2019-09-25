@@ -61,15 +61,6 @@ void split_memo(const string& memo, string& word1, string& word2) {
 	}
 }
 
-bool is_dusd_mint_transfer(name token_contract, name from, asset quantity, const string& memo) {
-	if(memo.size() < 5)
-		return false;
-	return
-		token_contract == CUSTODIAN &&
-		quantity.symbol == DBTC &&
-		memo.substr(memo.size() - 5) == " DUSD";
-}
-
 bool is_technical_transfer(name token_contract, name from, asset quantity, const string& memo) {
 	return token_contract == CUSTODIAN && quantity.symbol == DBTC;
 }
@@ -85,21 +76,29 @@ time_point get_var_upd_time(const string & _name, const name & scope) {
 }
 
 bool is_dusd_mint(name from, name to, extended_asset quantity, const string & memo) {
-	if( to == BANKACCOUNT
-		&& quantity.quantity.symbol == DBTC
-		&& quantity.contract == CUSTODIAN
-		&& match_memo(memo, "Buy DUSD"))
-		return true;
-	return false;
+	bool for_dbtc = to == BANKACCOUNT
+					&& quantity.quantity.symbol == DBTC
+					&& quantity.contract == CUSTODIAN
+					&& match_memo(memo, "Buy DUSD");
+	bool for_eos =  to == BANKACCOUNT
+					&& quantity.quantity.symbol == EOS
+					&& quantity.contract == EOSIOTOKEN
+					&& match_memo(memo, "Buy DUSD");
+	return for_dbtc || for_eos;
 }
 
 bool is_dusd_redeem(name from, name to, extended_asset quantity, const string & memo) {
-	if( to == BANKACCOUNT
-		&& quantity.quantity.symbol == DUSD
-		&& quantity.contract == BANKACCOUNT
-		&& match_memo(memo, "Redeem for DBTC"))
-		return true;
-	return false;
+	bool for_dbtc = to == BANKACCOUNT
+					&& quantity.quantity.symbol == DUSD
+					&& quantity.contract == BANKACCOUNT
+					&& (match_memo(memo, "Redeem for DBTC") || validate_btc_address(memo, BITCOIN_TESTNET));
+
+	bool for_eos =  to == BANKACCOUNT
+					&& quantity.quantity.symbol == DUSD
+					&& quantity.contract == BANKACCOUNT
+					&& match_memo(memo, "Redeem for EOS");
+
+	return for_dbtc || for_eos;
 }
 
 bool is_user_exchange(name from, name to, extended_asset quantity, const string & memo) {
