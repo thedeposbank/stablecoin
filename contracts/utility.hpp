@@ -112,6 +112,12 @@ int64_t get_btc_price() {
 	return value;
 }
 
+int64_t get_eos_price() {
+	// returns price in cents
+	int64_t value = get_variable("eosusd", PERIODIC_SCOPE) / 1e6;
+	return value;
+}
+
 int64_t get_usd_value(asset quantity) {
 	// returns value in cents
 	if(quantity.symbol == DBTC || quantity.symbol == BTC)
@@ -170,10 +176,11 @@ int64_t get_balance(name user, const symbol token) {
 
 	if(token == DBTC)
 		emitent = CUSTODIAN;
+	if(token == EOS)
+		emitent = EOSIOTOKEN;
 	
 	accounts acc(emitent, user.value);
 	auto it = acc.find(token.code().raw());
-	print("\n balance ", user, it->balance);
 	if(it == acc.end())
 		return 0;
 	return it->balance.amount;
@@ -182,7 +189,9 @@ int64_t get_balance(name user, const symbol token) {
 int64_t get_hedge_assets_value() {
 	int64_t dbtc_balance = get_balance(BANKACCOUNT, DBTC);
 	int64_t bitmex_balance = get_balance(BITMEXACC, BTC);
-	return get_usd_value(asset(dbtc_balance, DBTC)) + get_usd_value(asset(bitmex_balance, BTC));
+	int64_t eos_balance = get_balance(BANKACCOUNT, EOS);
+	return get_usd_value(asset(dbtc_balance, DBTC)) + get_usd_value(asset(bitmex_balance, BTC)) + 
+			get_usd_value(asset(eos_balance, EOS));
 }
 
 int64_t get_liquidity_pool_value() {
@@ -227,7 +236,8 @@ int64_t get_bank_assets_value() {
 	// calculate BTC value
 	int64_t btc_balance = get_balance(BITMEXACC, BTC) + get_balance(BANKACCOUNT, DBTC);
 
-	return get_usd_value(asset(btc_balance, DBTC)) + get_dbonds_assets_value();
+	return get_usd_value(asset(btc_balance, DBTC)) + get_usd_value(asset(get_balance(BANKACCOUNT, EOS), EOS)) 
+			+ get_dbonds_assets_value();
 }
 
 void set_stat(const string & stat, int64_t value) {
@@ -254,7 +264,6 @@ int64_t get_bank_capital_value() {
 }
 
 int64_t get_supply(const symbol & token) {
-	print("\ngot here 15");
 	if(token == DUSD || token == DPS){
 		stats st = stats(BANKACCOUNT, token.code().raw());
 		return st.get(token.code().raw()).supply.amount;
@@ -263,11 +272,11 @@ int64_t get_supply(const symbol & token) {
 		stats st = stats(CUSTODIAN, token.code().raw());
 		return st.get(token.code().raw()).supply.amount;
 	}
+	// for EOS it would never be needed
+
 	fail("token of that type not supported");
 	return 0;
 }
-
-
 
 asset dusd2dps(asset dusd) {
 	check(dusd.symbol == DUSD, "wrong symbol in dusd2dps()");
@@ -320,6 +329,27 @@ int64_t dusd2satoshi(asset dusd) {
 	double rate = (100 + redeemFee) * 1e-10 * periodic_vars.require_find(("btcusd"_n).value, "btcusd (exchange rate) variable not found")->value;
 	int64_t satoshi_amount = std::round(1e6 * dusd.amount / rate); // hardcode: DUSD precision is 2
 	return satoshi_amount;
+}
+
+asset eos2dusd(int64_t eoshi_amount) {
+	variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
+	variables periodic_vars(BANKACCOUNT, PERIODIC_SCOPE.value);
+	// "btcusd", "fee.mint" variables are stored in scale 1e8
+	double mintFee = 1e-8 * sys_vars.require_find(("fee.mint"_n).value, "fee.mint (mint fee in percent) variable not found")->value;
+	double rate = (100.0 - mintFee) * 1e-10 * periodic_vars.require_find(("eosusd"_n).value, "eosusd (exchange rate) variable not found")->value;
+	int64_t amount = std::round(rate * eoshi_amount / 1e6); // hardcode: DUSD precision is 2
+	return {amount, DUSD};
+}
+
+int64_t dusd2eos(asset dusd) {
+	check(dusd.symbol == DUSD, "wrong symbol in dusd2satoshi()");
+	variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
+	variables periodic_vars(BANKACCOUNT, PERIODIC_SCOPE.value);
+	// "btcusd", "fee.redeem" variables are stored in scale 1e8
+	double redeemFee = 1e-8 * sys_vars.require_find(("fee.redeem"_n).value, "fee.redeem (redemption fee) variable not found")->value;
+	double rate = (100 + redeemFee) * 1e-10 * periodic_vars.require_find(("eosusd"_n).value, "eosusd (exchange rate) variable not found")->value;
+	int64_t eoshi_amount = std::round(1e6 * dusd.amount / rate); // hardcode: DUSD precision is 2
+	return eoshi_amount;
 }
 
 int64_t bitmex_in_process_redeem_order_btc_amount(name user) {

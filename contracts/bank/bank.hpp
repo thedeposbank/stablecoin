@@ -151,4 +151,6 @@ private:
 	void process_mint_DUSD_for_DBTC(name buyer, asset dbtc_quantity);
 	void process_mint_DPS_for_DBTC(name buyer, asset dbtc_quantity);
 	bool is_authdbond_contract(name who);
+	void process_mint_DUSD_for_EOS(name buyer, asset eos_quantity);
+	void process_redeem_DUSD_for_EOS(name from, name to, asset quantity, string memo);
 };

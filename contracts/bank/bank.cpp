@@ -33,23 +33,40 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 		return;
 	}
 
-
 	check_main_switch();
 	
 
 	if(to == BANKACCOUNT && quantity.symbol == DUSD) {
+		
+#ifdef DEBUG
+		if(match_memo(memo, "debug"))
+		{
+			process_regular_transfer(from, to, quantity, memo);
+			check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
+			return;
+		}
+#endif
 		if(match_memo(memo,"Buy DPS"))
 			process_redeem_DUSD_for_DPS(from, to, quantity, memo);
-		else if(match_memo(memo, "Redeem for DBTC"))
-			process_redeem_DUSD_for_DBTC(from, to, quantity, memo);
-		else if(is_authdbond_contract(from))
-			process_regular_transfer(from, to, quantity, memo);
-#ifdef DEBUG
-		else if(match_memo(memo, "debug"))
-			process_regular_transfer(from, to, quantity, memo);
-#endif
-		else
-			process_redeem_DUSD_for_BTC(from, to, quantity, memo);
+
+		// if DBTC/BTC is approved and supported
+		else if(is_approved_liquid_asset(extended_asset(asset(0, DBTC), CUSTODIAN))) {
+			
+			// redeem DUSD for DBTC
+			if(match_memo(memo, "Redeem for DBTC"))
+				process_redeem_DUSD_for_DBTC(from, to, quantity, memo);
+			// otherwie it is supposed, that it is BTC withdrwal via CUSTODIAN
+			else if(validate_btc_address(memo, BITCOIN_TESTNET))
+				process_redeem_DUSD_for_BTC(from, to, quantity, memo);
+			else
+				fail("transfer not allowed");
+		}
+		// if EOS is approved and supported
+		else if(is_approved_liquid_asset(extended_asset(asset(0, EOS), EOSIOTOKEN))) {
+			// redeem DUSD for EOS
+			if(match_memo(memo, "Redeem for EOS"))
+				process_redeem_DUSD_for_EOS(from, to, quantity, memo);
+		}
 	}
 	else if(quantity.symbol == DPS) {
 		// redeem DPS for DUSD, DBTC or BTC
@@ -57,14 +74,9 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 			process_redeem_DPS_for_DUSD(from, to, quantity, memo);
 		else if(match_memo(memo, "Redeem for DBTC"))
 			process_redeem_DPS_for_DBTC(from, to, quantity, memo);
-#ifdef DEBUG
-		else if(match_memo(memo, "debug"))
-			process_regular_transfer(from, to, quantity, memo);
-#endif
-		else
-			process_redeem_DPS_for_BTC(from, to, quantity, memo);
+		process_redeem_DPS_for_BTC(from, to, quantity, memo);
 	}
-	else fail("arbitrary transfer to bank account");
+	else fail("transfer is not allowed");
 
 	check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
 }
@@ -74,24 +86,43 @@ void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 
 	if(from == _self)
 		return;
-
 	// if I recieve a dbond as collateral (payment was sent earlier)
-	if(is_dbond_contract(token_contract)){
+	if(is_dbond_contract(token_contract)) {
 		balanceSupply();
+		return;
 	}
+
+	// if not dbond, then only utility::approved_liquid_assets as in-coming transfers allowed
+	extended_asset ex_asset = extended_asset(quantity, token_contract);
+	if(!is_approved_liquid_asset(ex_asset)) {
+		fail("transfer not allowed");
+	}
+
 	// if DUSD mint request
-	else if(is_dusd_mint_transfer(token_contract, from, quantity, memo)) {
-		string buy_str, token_str;
-		split_memo(memo, buy_str, token_str);
-		// if request from user with via web-site with custodian involved
-		if(from == CUSTODIAN) {
-			process_mint_DUSD_for_DBTC(name{buy_str}, quantity);
+	if(is_dusd_mint_transfer(token_contract, from, quantity, memo)) {
+		// parse memo
+		string buyer_str, token_str;
+		split_memo(memo, buyer_str, token_str);
+
+		// if request "mint DUSD for DBTC"
+		if(ex_asset.get_extended_symbol() == extended_symbol(DBTC, EOSIOTOKEN)){
+			// if request from user via web-site with custodian involved
+			if(from == CUSTODIAN) {
+				process_mint_DUSD_for_DBTC(name{buyer_str}, quantity);
+			}
+			// if on-chain request from user
+			else {
+				check(match_memo(buyer_str, "buy"), "memo format for token purchase: 'Buy <token name>'");
+				process_mint_DUSD_for_DBTC(from, quantity);
+			}
 		}
-		// if on-chain request from user
-		else {
-			check(match_memo(buy_str, "buy"), "memo format for token buy: 'Buy <token name>'");
-			process_mint_DUSD_for_DBTC(from, quantity);
+
+		// if request "mint DUSD for EOS"
+		if(ex_asset.get_extended_symbol() == extended_symbol(EOS, EOSIOTOKEN)){
+			check(match_memo(buyer_str, "buy"), "memo format for token purchase: 'Buy <token name>'");
+			process_mint_DUSD_for_EOS(from, quantity);
 		}
+		
 	}
 	// if technical internal transaction (ex. rebalancing portfolio)
 	else if(is_technical_transfer(token_contract, from, quantity, memo)) {
