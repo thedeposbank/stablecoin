@@ -160,6 +160,7 @@ int64_t get_balance(name user, const symbol token) {
 	// returns balance:
 	// BTC/DBTC in satoshi
 	// USD/DUSD in cents
+	// dps with 1e-8 precision
 	if(token == BTC){
 		variables periodic(BANKACCOUNT, PERIODIC_SCOPE.value);
 		if(user == BITMEXACC){	
@@ -170,7 +171,7 @@ int64_t get_balance(name user, const symbol token) {
 		}
 	}
 
-	// default case token = DUSD
+	// default case token = DUSD | DPS
 	name emitent = BANKACCOUNT;
 
 	if(token == DBTC)
@@ -239,19 +240,20 @@ int64_t get_bank_assets_value() {
 			+ get_dbonds_assets_value();
 }
 
-void set_stat(const string & stat, int64_t value) {
-	variables stats(BANKACCOUNT, STAT_SCOPE.value);
-	auto stat_itr = stats.find(name(stat).value);
+void set_variable(const string & stat, int64_t value, const name & SCOPE) {
+	check(SCOPE == SYSTEM_SCOPE || SCOPE == PERIODIC_SCOPE, "only system or periodic scope allowed");
+	variables vars(BANKACCOUNT, SCOPE.value);
+	auto var_itr = vars.find(name(stat).value);
 
-	if(stat_itr == stats.end()) {
-		stats.emplace(BANKACCOUNT, [&](auto& new_stat) {
-			new_stat.var_name = name(stat);
-			new_stat.value = value;
-			new_stat.mtime = current_time_point();
+	if(var_itr == vars.end()) {
+		vars.emplace(BANKACCOUNT, [&](auto& new_var) {
+			new_var.var_name = name(stat);
+			new_var.value = value;
+			new_var.mtime = current_time_point();
 		});
 	}
 	else{
-		stats.modify(stat_itr, BANKACCOUNT, [&](auto& var) {
+		vars.modify(var_itr, BANKACCOUNT, [&](auto& var) {
 			var.value = value;
 			var.mtime = current_time_point();
 		});
@@ -277,17 +279,21 @@ int64_t get_supply(const symbol & token) {
 	return 0;
 }
 
-asset dusd2dps(asset dusd) {
+asset dusd2dps(asset dusd, bool nominal) {
 	check(dusd.symbol == DUSD, "wrong symbol in dusd2dps()");
 	stats dpsStats(BANKACCOUNT, DPS.code().raw());
 	asset dpsSupply = dpsStats.require_find(DPS.code().raw())->supply;
 
-	double rate = dusdPrecision / dpsPrecision * 1e-8 * get_variable("dps.price", PERIODIC_SCOPE);
+	double rate;
+	if(nominal)
+		rate = dusdPrecision / dpsPrecision * 1e-8 * get_variable("dps.price", PERIODIC_SCOPE);
+	else
+		rate = dusdPrecision / dpsPrecision * 1e-8 * get_variable("dpsdusdslprc", SYSTEM_SCOPE);
 
 	return {static_cast<int64_t>(std::round(dusd.amount / rate)), DPS};
 }
 
-asset dps2dusd(asset dps) {
+asset dps2dusd(asset dps, bool nominal) {
 	check(dps.symbol == DPS, "wrong symbol in dps2dusd()");
 
 	auto redeemEnableTime = get_variable("dps.redeem", SYSTEM_SCOPE);
@@ -305,8 +311,12 @@ asset dps2dusd(asset dps) {
 		dps_stats.require_find(DPS.code().raw())->supply -
 		issuer_balances.require_find(DPS.code().raw())->balance;
 
-	double rate = ((1.0 - redeemFee) * reserveFund.amount) / dpsInCirculation.amount;
-	return {static_cast<int64_t>(std::round(rate * dps.amount)), DUSD};
+	double rate;
+	if(nominal)
+		rate = ((1.0 - redeemFee) * reserveFund.amount) / dpsInCirculation.amount;
+	else
+		rate = (1.0 - redeemFee) * get_variable("dpsdusdslprc", SYSTEM_SCOPE) * 1e-8;
+	return {static_cast<int64_t>(std::round(rate * dps.amount)), DUSD}; // CHECK FOR THE PRECISION !!!
 }
 
 asset satoshi2dusd(int64_t satoshi_amount) {

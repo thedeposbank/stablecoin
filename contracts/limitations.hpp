@@ -164,9 +164,9 @@ void update_statistics_on_trade(name from, name to, extended_asset quantity, con
 	int64_t transaction_value = get_usd_value(quantity);
 	
 	if(is_dusd_mint(from, to, quantity, memo))
-		set_stat("volumeused", cur_volume_used - transaction_value * 1000000);
+		set_variable("volumeused", cur_volume_used - transaction_value * 1000000, STAT_SCOPE);
 	if(is_dusd_redeem(from, to, quantity, memo))
-		set_stat("volumeused", cur_volume_used + transaction_value * 1000000);
+		set_variable("volumeused", cur_volume_used + transaction_value * 1000000, STAT_SCOPE);
 }
 
 void decay_used_volume(){
@@ -193,7 +193,7 @@ void decay_used_volume(){
 	print("\nl_h, r_h, n_h ", l_hour, " ", r_hour, " ", n_hours);
 	print("\nupdated volume used", updated);
 
-	set_stat("volumeused", updated);
+	set_variable("volumeused", updated, STAT_SCOPE);
 }
 
 void check_on_transfer(name from, name to, extended_asset quantity, const string & memo){

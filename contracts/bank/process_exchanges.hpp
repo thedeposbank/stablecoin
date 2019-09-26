@@ -39,13 +39,20 @@ void bank::process_service_transfer(name from, name to, asset quantity, string m
 	add_balance( to, quantity, payer );
 }
 
-void bank::process_redeem_DUSD_for_DPS(name from, name to, asset quantity, string memo){
-	// exchange DUSD => DPS
+void bank::process_exchange_DUSD_for_DPS(name from, name to, asset quantity, string memo){
+	// exchange DUSD => DPS with price for sale
 
-	asset dpsToDevFund;
-	asset dpsQuantity = dusd2dps(quantity);
-	splitToDev(dpsQuantity, dpsToDevFund);
+	check(quantity.symbol == DUSD, "only DUSD as payment allowed");
 
+	asset dps_to_dev;
+	asset dps_quantity_requested = dusd2dps(quantity, false);
+	asset dps_quantity = dps_quantity_requested;
+	dps_quantity.amount = min(dps_quantity.amount, get_balance(_self, DPS));
+	asset change = dps2dusd(dps_quantity_requested - dps_quantity, false);
+
+	check(dps_quantity.amount > 0, "there is no DPS for sale at the moment");
+
+	splitToDev(dps_quantity, dps_to_dev);
 	auto payer = from;
 	
 	// transfer DUSD
@@ -53,11 +60,14 @@ void bank::process_redeem_DUSD_for_DPS(name from, name to, asset quantity, strin
 	add_balance(BANKACCOUNT, quantity, payer);
 
 	// transfer to dev fund
-	if(dpsToDevFund.amount != 0)
-		SEND_INLINE_ACTION(*this, transfer, {{from, "active"_n}}, {from, DEVELACCOUNT, dpsToDevFund, memo});
+	if(dps_to_dev.amount != 0)
+		SEND_INLINE_ACTION(*this, transfer, {{from, "active"_n}}, {from, DEVELACCOUNT, dps_to_dev, memo});
 	
 	// transfer DPS
-	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dpsQuantity, "DPS for DUSD"});
+	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dps_quantity, "DPS for DUSD"});
+
+	if(change.amount > 0)
+		SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, change, "change DUSD from DPS purchase"});
 }
 
 void bank::process_redeem_DUSD_for_DBTC(name from, name to, asset quantity, string memo) {
@@ -94,34 +104,38 @@ void bank::process_redeem_DUSD_for_BTC(name from, name to, asset quantity, strin
 }
 
 void bank::process_redeem_DPS_for_DUSD(name from, name to, asset quantity, string memo){
+	// exchange DPS => DUSD at nominal price
 
-	asset dusdQuantity = dps2dusd(quantity);
+	asset dusdQuantity = dps2dusd(quantity, true);
 	
 	auto payer = has_auth( to ) ? to : from;
 	// transfer DPS to issuer.
 	sub_balance(from, quantity);
 	add_balance(BANKACCOUNT, quantity, payer);
 
-	// exchange DPS => DUSD at nominal price
+	
 	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dusdQuantity, "DPS for DUSD sell"});
 }
 
 void bank::process_redeem_DPS_for_DBTC(name from, name to, asset quantity, string memo){
-	asset dusdQuantity = dps2dusd(quantity);
+	// exchange DPS at nominal price
+	asset dusdQuantity = dps2dusd(quantity, true);
 	
 	auto payer = has_auth( to ) ? to : from;
 	// transfer DPS to issuer.
 	sub_balance(from, quantity);
 	add_balance(BANKACCOUNT, quantity, payer);
 
+	asset dbtcQuantity = {dusd2satoshi(dusdQuantity), DBTC};
+
 	// redeem for DBTC or BTC
 	SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {dusdQuantity, memo});
 
-	asset dbtcQuantity = {dusd2satoshi(dusdQuantity), DBTC};
+	fail("not implemented");
 }
 
 void bank::process_redeem_DPS_for_BTC(name from, name to, asset quantity, string memo){
-	asset dusdQuantity = dps2dusd(quantity);
+	asset dusdQuantity = dps2dusd(quantity, true);
 	
 	auto payer = has_auth( to ) ? to : from;
 	// transfer DPS to issuer.
@@ -132,12 +146,14 @@ void bank::process_redeem_DPS_for_BTC(name from, name to, asset quantity, string
 	SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {dusdQuantity, memo});
 
 	asset dbtcQuantity = {dusd2satoshi(dusdQuantity), DBTC};
+
+	fail("not implemented");
 }
 
 void bank::process_mint_DPS_for_DBTC(name buyer, asset dbtc_quantity) {
 	asset dusd_quantity = satoshi2dusd(dbtc_quantity.amount);
 	asset dps_to_dev_fund;
-	asset dps_quantity = dusd2dps(dusd_quantity);
+	asset dps_quantity = dusd2dps(dusd_quantity, true);
 	splitToDev(dps_quantity, dps_to_dev_fund);
 
 	SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, dusd_quantity, "DUSD for DBTC"});

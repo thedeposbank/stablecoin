@@ -140,12 +140,12 @@ public:
 		return st.supply;
 	}
 
-	static asset get_balance( name token_contract_account, name owner, symbol_code sym_code )
-	{
-		accounts accountstable( token_contract_account, owner.value );
-		const auto& ac = accountstable.get( sym_code.raw() );
-		return ac.balance;
-	}
+	// static asset get_balance( name token_contract_account, name owner, symbol_code sym_code )
+	// {
+	// 	accounts accountstable( token_contract_account, owner.value );
+	// 	const auto& ac = accountstable.get( sym_code.raw() );
+	// 	return ac.balance;
+	// }
 
 protected:
 

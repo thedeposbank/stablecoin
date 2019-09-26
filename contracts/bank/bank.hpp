@@ -49,6 +49,8 @@ public:
 
 	ACTION authdbond(name dbond_contract, dbond_id_class dbond_id);
 
+	ACTION listdpssale(asset target_total_supply, asset price);
+
 	/*
 	 * New token actions and methods
 	 */
@@ -141,7 +143,7 @@ private:
 
 	void process_regular_transfer(name from, name to, asset quantity, string memo);
 	void process_service_transfer(name from, name to, asset quantity, string memo);
-	void process_redeem_DUSD_for_DPS(name from, name to, asset quantity, string memo);
+	void process_exchange_DUSD_for_DPS(name from, name to, asset quantity, string memo);
 	void process_redeem_DUSD_for_DBTC(name from, name to, asset quantity, string memo);
 	void process_redeem_DUSD_for_BTC(name from, name to, asset quantity, string memo);
 	void process_redeem_DPS_for_DUSD(name from, name to, asset quantity, string memo);

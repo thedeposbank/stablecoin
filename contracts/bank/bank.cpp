@@ -50,7 +50,7 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 	else if(quantity.symbol == DUSD) {
 		// if user transfers dusd to buy dps
 		if(match_memo(memo,"Buy DPS"))
-			process_redeem_DUSD_for_DPS(from, to, quantity, memo);
+			process_exchange_DUSD_for_DPS(from, to, quantity, memo);
 		// if transfer is to redeem dusd for dbtc/btc/eos
 		else if(is_dusd_redeem(from, to, extended_asset(quantity, _self), memo)) {
 			if(is_approved_liquid_asset(extended_asset(asset(0, DBTC), CUSTODIAN))) {
@@ -214,6 +214,20 @@ ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
 	).send();
 }
 
+ACTION bank::listdpssale(asset target_total_supply, asset price) {
+	require_auth(_self);
+	check(target_total_supply.symbol == DPS, "as target_supply only DPS allowed");
+	check(price.symbol == DUSD, "as price only DUSD allowed");
+
+	stats statstable(_self, DPS.code().raw());
+	auto& st = statstable.get(DPS.code().raw());
+
+	asset dps_to_issue = target_total_supply - st.supply;
+	SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {BANKACCOUNT, dps_to_issue, "issue dps for further sale"});
+
+	set_variable("dpsdusdslprc", price.amount, SYSTEM_SCOPE);
+}
+
 void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buyer, extended_asset recieved_asset, bool is_sell) {
 	authorized_dbonds dblist(_self, _self.value);
 	name dbond_contract = dblist.get(dbond_id.raw(), "unauthorized dbond").contract;
@@ -297,7 +311,7 @@ void bank::balanceSupply() {
 	if(supplyErrorCents && supplyErrorCents >= maxSupplуErrorCents) {
 		// in order not to fail transaction, let's retire not more than we have
 		// using token::get_balance(), not ::get_balance
-		int64_t to_retire = min(supplyErrorCents, get_balance(BANKACCOUNT, BANKACCOUNT, DUSD.code()).amount);
+		int64_t to_retire = min(supplyErrorCents, get_balance(BANKACCOUNT, DUSD));
 		if(to_retire == 0)
 			return;
 
