@@ -42,18 +42,19 @@ void bank::process_service_transfer(name from, name to, asset quantity, string m
 void bank::process_redeem_DUSD_for_DPS(name from, name to, asset quantity, string memo){
 	// exchange DUSD => DPS
 
-	asset dusdToDevFund, dusdToReserve;
+	asset dpsToDevFund;
 	asset dpsQuantity = dusd2dps(quantity);
-	splitToDev(quantity, dusdToReserve, dusdToDevFund);
+	splitToDev(dpsQuantity, dpsToDevFund);
 
 	auto payer = from;
 	
 	// transfer DUSD
-	sub_balance(from, dusdToReserve);
-	add_balance(BANKACCOUNT, dusdToReserve, payer);
+	sub_balance(from, quantity);
+	add_balance(BANKACCOUNT, quantity, payer);
 
-	if(dusdToDevFund.amount != 0)
-		SEND_INLINE_ACTION(*this, transfer, {{from, "active"_n}}, {from, DEVELACCOUNT, dusdToDevFund, memo});
+	// transfer to dev fund
+	if(dpsToDevFund.amount != 0)
+		SEND_INLINE_ACTION(*this, transfer, {{from, "active"_n}}, {from, DEVELACCOUNT, dpsToDevFund, memo});
 	
 	// transfer DPS
 	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dpsQuantity, "DPS for DUSD"});
@@ -135,12 +136,12 @@ void bank::process_redeem_DPS_for_BTC(name from, name to, asset quantity, string
 
 void bank::process_mint_DPS_for_DBTC(name buyer, asset dbtc_quantity) {
 	asset dusd_quantity = satoshi2dusd(dbtc_quantity.amount);
-	asset dusd_to_dev_fund, dusd_to_capital;
+	asset dps_to_dev_fund;
 	asset dps_quantity = dusd2dps(dusd_quantity);
-	splitToDev(dusd_quantity, dusd_to_capital, dusd_to_dev_fund);
+	splitToDev(dps_quantity, dps_to_dev_fund);
 
-	SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, dusd_quantity, "DPS for DBTC"});
-	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, DEVELACCOUNT, dusd_to_dev_fund, "DPS for DBTC"});
+	SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, dusd_quantity, "DUSD for DBTC"});
+	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, DEVELACCOUNT, dps_to_dev_fund, "DPS for DBTC"});
 	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, buyer, dps_quantity, "DPS for DBTC"});
 }
 

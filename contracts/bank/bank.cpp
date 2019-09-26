@@ -31,6 +31,7 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 		{
 			process_regular_transfer(from, to, quantity, memo);
 			check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
+			balanceSupply();
 			return;
 		}
 #endif
@@ -51,7 +52,7 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 		if(match_memo(memo,"Buy DPS"))
 			process_redeem_DUSD_for_DPS(from, to, quantity, memo);
 		// if transfer is to redeem dusd for dbtc/btc/eos
-		if(is_dusd_redeem(from, to, extended_asset(quantity, _self), memo)) {
+		else if(is_dusd_redeem(from, to, extended_asset(quantity, _self), memo)) {
 			if(is_approved_liquid_asset(extended_asset(asset(0, DBTC), CUSTODIAN))) {
 				// redeem DUSD for DBTC
 				if(match_memo(memo, "Redeem for DBTC"))
@@ -71,6 +72,12 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 					fail("transfer not allowed");
 			}
 		}
+		// if dbond-connected transfer
+		else if(is_dbond_contract(from)) {
+			// recieved dusd from dbonds? nothing to do
+		}
+		else
+			fail("transfer not allowed");
 	}
 
 	// if to == _self and asset is DPS
@@ -78,10 +85,10 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 		// redeem DPS for DUSD, DBTC or BTC
 		if(match_memo(memo, "Redeem for DUSD"))
 			process_redeem_DPS_for_DUSD(from, to, quantity, memo);
-		else if(match_memo(memo, "Redeem for DBTC"))
-			process_redeem_DPS_for_DBTC(from, to, quantity, memo);
-		else if(validate_btc_address(memo, BITCOIN_TESTNET))
-			process_redeem_DPS_for_BTC(from, to, quantity, memo);
+		//else if(match_memo(memo, "Redeem for DBTC"))
+		//	process_redeem_DPS_for_DBTC(from, to, quantity, memo);
+		//else if(validate_btc_address(memo, BITCOIN_TESTNET))
+		//	process_redeem_DPS_for_BTC(from, to, quantity, memo);
 		else
 			fail("transfer not allowed");
 	}
@@ -95,11 +102,18 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 	name token_contract = get_first_receiver();
 
-	if(from == _self){}
+	// skip not relevant transfer
+	if(from != _self && to != _self){
+		return;
+	}
+
+	if(from == _self){
+		// nothing to do, look at the bottom
+	}
 
 	// if I recieve a dbond as collateral (payment was sent earlier)
 	else if(is_dbond_contract(token_contract)) {
-		balanceSupply();
+		// nothing to do, look at the bottom
 	}
 
 	else {
@@ -121,7 +135,7 @@ void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 				if(from == CUSTODIAN) {
 					process_mint_DUSD_for_DBTC(name{buyer_str}, quantity);
 				}
-				// if on-chain request from user
+				// otherwise on-chain request from user
 				else {
 					check(match_memo(buyer_str, "buy"), "memo format for token purchase: 'Buy <token name>'");
 					process_mint_DUSD_for_DBTC(from, quantity);
@@ -129,19 +143,21 @@ void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 			}
 
 			// if request "mint DUSD for EOS"
-			if(ex_asset.get_extended_symbol() == extended_symbol(EOS, EOSIOTOKEN)){
+			else if(ex_asset.get_extended_symbol() == extended_symbol(EOS, EOSIOTOKEN)){
 				check(match_memo(buyer_str, "buy"), "memo format for token purchase: 'Buy <token name>'");
 				process_mint_DUSD_for_EOS(from, quantity);
 			}
 
 			// if technical internal transaction (ex. rebalancing portfolio)
 			else if(is_technical_transfer(token_contract, from, quantity, memo)) {
-				balanceSupply();
+				// nothing to do, look at the bottom
 			}
 			else
 				fail("transfer not allowed");
 		}
+		
 	}
+	balanceSupply();
 	check_on_transfer(from, to, {quantity, token_contract}, memo);
 	check_on_system_change();
 }
@@ -237,15 +253,14 @@ void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buye
 	}
 }
 
-void bank::splitToDev(const asset& quantity, asset& toReserve, asset& toDev) {
+void bank::splitToDev(const asset& quantity, asset& toDev) {
 	variables vars(BANKACCOUNT, SYSTEM_SCOPE.value);
 	double devRatio = 0.0; // default development ratio = 0
 	auto var_itr = vars.find(("dev.percent"_n).value);
 	if(var_itr != vars.end())
 		devRatio = 1e-10 * var_itr->value;
 
-	toDev = asset(std::round(quantity.amount * devRatio / (1 + devRatio)), quantity.symbol);
-	toReserve = quantity - toDev;
+	toDev = asset(std::round(quantity.amount * devRatio), quantity.symbol);
 }
 
 void bank::balanceSupply() {

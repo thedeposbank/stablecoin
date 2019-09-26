@@ -136,7 +136,7 @@ private:
 	
 	typedef eosio::multi_index< "variables"_n, variable > variables;
 
-	void splitToDev(const asset& quantity, asset& toReserve, asset& toDev);
+	void splitToDev(const asset& quantity, asset& toDev);
 	void balanceSupply();
 
 	void process_regular_transfer(name from, name to, asset quantity, string memo);
