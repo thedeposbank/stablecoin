@@ -24,84 +24,125 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 
 	check_transfer(from, to, quantity, memo);
 
+	check_main_switch();
+
+#ifdef DEBUG
+		if(match_memo(memo, "debug"))
+		{
+			process_regular_transfer(from, to, quantity, memo);
+			check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
+			return;
+		}
+#endif
+
+	// if regular p2p transfer or special with no reaction needed
 	if((from != BANKACCOUNT && to != BANKACCOUNT) || memo == "deny") {
 		process_regular_transfer(from, to, quantity, memo);
-		return;
 	}
-	if(from == BANKACCOUNT) {
+
+	// if transfer from _self then do service transfer
+	else if(from == BANKACCOUNT) {
 		process_service_transfer(from, to, quantity, memo);
-		return;
 	}
 
-
-	check_main_switch();
-	
-
-	if(to == BANKACCOUNT && quantity.symbol == DUSD) {
+	// if to == _self and asset is DUSD
+	else if(quantity.symbol == DUSD) {
+		// if user transfers dusd to buy dps
 		if(match_memo(memo,"Buy DPS"))
 			process_redeem_DUSD_for_DPS(from, to, quantity, memo);
-		else if(match_memo(memo, "Redeem for DBTC"))
-			process_redeem_DUSD_for_DBTC(from, to, quantity, memo);
-		else if(is_authdbond_contract(from))
-			process_regular_transfer(from, to, quantity, memo);
-#ifdef DEBUG
-		else if(match_memo(memo, "debug"))
-			process_regular_transfer(from, to, quantity, memo);
-#endif
-		else
-			process_redeem_DUSD_for_BTC(from, to, quantity, memo);
+		// if transfer is to redeem dusd for dbtc/btc/eos
+		if(is_dusd_redeem(from, to, extended_asset(quantity, _self), memo)) {
+			if(is_approved_liquid_asset(extended_asset(asset(0, DBTC), CUSTODIAN))) {
+				// redeem DUSD for DBTC
+				if(match_memo(memo, "Redeem for DBTC"))
+					process_redeem_DUSD_for_DBTC(from, to, quantity, memo);
+				// otherwie it is supposed, that it is BTC withdrwal via CUSTODIAN
+				else if(validate_btc_address(memo, BITCOIN_TESTNET))
+					process_redeem_DUSD_for_BTC(from, to, quantity, memo);
+				else
+					fail("transfer not allowed");
+			}
+			// if EOS is approved and supported
+			if(is_approved_liquid_asset(extended_asset(asset(0, EOS), EOSIOTOKEN))) {
+				// redeem DUSD for EOS
+				if(match_memo(memo, "Redeem for EOS"))
+					process_redeem_DUSD_for_EOS(from, to, quantity, memo);
+				else
+					fail("transfer not allowed");
+			}
+		}
 	}
+
+	// if to == _self and asset is DPS
 	else if(quantity.symbol == DPS) {
 		// redeem DPS for DUSD, DBTC or BTC
 		if(match_memo(memo, "Redeem for DUSD"))
 			process_redeem_DPS_for_DUSD(from, to, quantity, memo);
 		else if(match_memo(memo, "Redeem for DBTC"))
 			process_redeem_DPS_for_DBTC(from, to, quantity, memo);
-#ifdef DEBUG
-		else if(match_memo(memo, "debug"))
-			process_regular_transfer(from, to, quantity, memo);
-#endif
-		else
+		else if(validate_btc_address(memo, BITCOIN_TESTNET))
 			process_redeem_DPS_for_BTC(from, to, quantity, memo);
+		else
+			fail("transfer not allowed");
 	}
-	else fail("arbitrary transfer to bank account");
 
+	else fail("transfer is not allowed");
+
+	// at the end check transfer on limits
 	check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
 }
 
 void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 	name token_contract = get_first_receiver();
 
-	if(from == _self)
-		return;
+	if(from == _self){}
 
 	// if I recieve a dbond as collateral (payment was sent earlier)
-	if(is_dbond_contract(token_contract)){
+	else if(is_dbond_contract(token_contract)) {
 		balanceSupply();
 	}
-	// if DUSD mint request
-	else if(is_dusd_mint_transfer(token_contract, from, quantity, memo)) {
-		string buy_str, token_str;
-		split_memo(memo, buy_str, token_str);
-		// if request from user with via web-site with custodian involved
-		if(from == CUSTODIAN) {
-			process_mint_DUSD_for_DBTC(name{buy_str}, quantity);
+
+	else {
+		// if not dbond, then only utility::approved_liquid_assets as in-coming transfers allowed
+		extended_asset ex_asset = extended_asset(quantity, token_contract);
+		if(!is_approved_liquid_asset(ex_asset)) {
+			fail("transfer not allowed");
 		}
-		// if on-chain request from user
-		else {
-			check(match_memo(buy_str, "buy"), "memo format for token buy: 'Buy <token name>'");
-			process_mint_DUSD_for_DBTC(from, quantity);
+
+		// if DUSD mint request
+		if(is_dusd_mint(from, to, extended_asset(quantity, token_contract), memo)) {
+			// parse memo
+			string buyer_str, token_str;
+			split_memo(memo, buyer_str, token_str);
+
+			// if request "mint DUSD for DBTC"
+			if(ex_asset.get_extended_symbol() == extended_symbol(DBTC, CUSTODIAN)){
+				// if request from user via web-site with custodian involved
+				if(from == CUSTODIAN) {
+					process_mint_DUSD_for_DBTC(name{buyer_str}, quantity);
+				}
+				// if on-chain request from user
+				else {
+					check(match_memo(buyer_str, "buy"), "memo format for token purchase: 'Buy <token name>'");
+					process_mint_DUSD_for_DBTC(from, quantity);
+				}
+			}
+
+			// if request "mint DUSD for EOS"
+			if(ex_asset.get_extended_symbol() == extended_symbol(EOS, EOSIOTOKEN)){
+				check(match_memo(buyer_str, "buy"), "memo format for token purchase: 'Buy <token name>'");
+				process_mint_DUSD_for_EOS(from, quantity);
+			}
+
+			// if technical internal transaction (ex. rebalancing portfolio)
+			else if(is_technical_transfer(token_contract, from, quantity, memo)) {
+				balanceSupply();
+			}
+			else
+				fail("transfer not allowed");
 		}
 	}
-	// if technical internal transaction (ex. rebalancing portfolio)
-	else if(is_technical_transfer(token_contract, from, quantity, memo)) {
-		balanceSupply();
-	}
-	else
-		fail("transfer not allowed");
-	
 	check_on_transfer(from, to, {quantity, token_contract}, memo);
-	//this for check if I transfer frm thedeposbank somewhere else
 	check_on_system_change();
 }
 
@@ -117,7 +158,6 @@ ACTION bank::issue( name to, asset quantity, string memo ) {
 }
 
 ACTION bank::retire( asset quantity, string memo ) {
-	print("\n before retire");
 	token::retire(quantity, memo);
 	if(quantity.symbol == DUSD && memo != "supply balancing")
 	{
@@ -126,7 +166,6 @@ ACTION bank::retire( asset quantity, string memo ) {
 	}
 	else
 		check_on_system_change(true);
-	print("\n after retire");
 }
 
 ACTION bank::setvar(name scope, name varname, int64_t value) {

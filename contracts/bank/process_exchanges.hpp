@@ -76,21 +76,20 @@ void bank::process_redeem_DUSD_for_DBTC(name from, name to, asset quantity, stri
 	SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {quantity, memo});
 }
 
-void bank::process_redeem_DUSD_for_BTC(name from, name to, asset quantity, string memo){
+void bank::process_redeem_DUSD_for_BTC(name from, name to, asset quantity, string btc_address){
 	auto payer = has_auth( to ) ? to : from;
 	sub_balance( from, quantity );
 	add_balance( to, quantity, payer );
 
 	asset dbtcQuantity = {dusd2satoshi(quantity), DBTC};
 	// exchange DUSD => BTC
-	validate_btc_address(memo, BITCOIN_TESTNET);
 	action(
 		permission_level{_self, "active"_n},
 		CUSTODIAN, "transfer"_n,
-		std::make_tuple(BANKACCOUNT, CUSTODIAN, dbtcQuantity, memo)
+		std::make_tuple(BANKACCOUNT, CUSTODIAN, dbtcQuantity, btc_address)
 	).send();
 
-	SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {quantity, memo});
+	SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {quantity, btc_address});
 }
 
 void bank::process_redeem_DPS_for_DUSD(name from, name to, asset quantity, string memo){
@@ -143,10 +142,31 @@ void bank::process_mint_DPS_for_DBTC(name buyer, asset dbtc_quantity) {
 	SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, dusd_quantity, "DPS for DBTC"});
 	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, DEVELACCOUNT, dusd_to_dev_fund, "DPS for DBTC"});
 	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, buyer, dps_quantity, "DPS for DBTC"});
-
 }
 
 void bank::process_mint_DUSD_for_DBTC(name buyer, asset dbtc_quantity) {
 	asset dusd_quantity = satoshi2dusd(dbtc_quantity.amount);
 	SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {buyer, dusd_quantity, "DUSD for DBTC"});
+}
+
+void bank::process_mint_DUSD_for_EOS(name buyer, asset eos_quantity) {
+	asset dusd_quantity = eos2dusd(eos_quantity.amount);
+	SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {buyer, dusd_quantity, "DUSD for EOS"});
+}
+
+void bank::process_redeem_DUSD_for_EOS(name from, name to, asset quantity, string memo){
+	auto payer = has_auth( to ) ? to : from;
+	sub_balance( from, quantity );
+	add_balance( to, quantity, payer );
+
+	asset eos_quantity = {dusd2eos(quantity), EOS};
+
+	// exchange DUSD => EOS
+	action(
+		permission_level{_self, "active"_n},
+		EOSIOTOKEN, "transfer"_n,
+		std::make_tuple(BANKACCOUNT, from, eos_quantity, memo)
+	).send();
+
+	SEND_INLINE_ACTION(*this, retire, {{BANKACCOUNT, "active"_n}}, {quantity, memo});
 }

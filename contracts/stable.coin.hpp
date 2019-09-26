@@ -19,6 +19,7 @@ const double dusdPrecision = 1e2;
 const double dpsPrecision  = 1e8;
 const double dbtcPrecision = 1e8;
 
+
 enum Switches : int64_t {
 	None               = 0,
 	DisableConversions = 1
@@ -31,6 +32,8 @@ const name DEVELACCOUNT("deposdevelop");
 const name ORACLEACC("deposoracle1");
 const name BITMEXACC("bitmex");
 const name EOSIOTOKEN("eosio.token");
+
+const std::set<extended_symbol> approved_liquid_assets = {extended_symbol(DBTC, CUSTODIAN), extended_symbol(EOS, EOSIOTOKEN)};
 
 constexpr name PERIODIC_SCOPE = name{"periodic"};
 constexpr name SYSTEM_SCOPE   = name{"system"};
@@ -49,6 +52,10 @@ using dbond_id_class = symbol_code;
 bool fail(const char* message) {
 	check(0, message);
 	return false;
+}
+
+bool is_approved_liquid_asset(extended_asset quantity){
+	return approved_liquid_assets.find(quantity.get_extended_symbol()) != approved_liquid_assets.end();
 }
 
 bool validate_btc_address(const std::string& address, bool is_testnet) {
