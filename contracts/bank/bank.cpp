@@ -93,7 +93,7 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 			fail("transfer not allowed");
 	}
 
-	else fail("transfer is not allowed");
+	else fail("transfer not allowed");
 
 	// at the end check transfer on limits
 	check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);

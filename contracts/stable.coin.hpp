@@ -75,7 +75,7 @@ bool validate_btc_address(const std::string& address, bool is_testnet) {
 
 	for(int i = 0; address[i]; i++) {
 		if(address[i] & 0x80 || b58digits_map[address[i]] == -1)
-			return fail("Invalid bitcoin address: bad char");
+			return false; // fail("Invalid bitcoin address: bad char");
  
 		int c = b58digits_map[address[i]];
 		for(int j = 25; j--; ) {
@@ -84,14 +84,14 @@ bool validate_btc_address(const std::string& address, bool is_testnet) {
 			c >>= 8;
 		}
  
-		if(c) return fail("Invalid bitcoin address: address too long");
+		if(c) return false; // fail("Invalid bitcoin address: address too long");
 	}
 
 	uint8_t p2pkh_prefix = is_testnet ? 0x6f : 0x00;
 	uint8_t p2sh_prefix = is_testnet ? 0xc4 : 0x05;
 
 	if(addr_bin[0] != p2pkh_prefix && addr_bin[0] != p2sh_prefix)
-		return fail("Invalid bitcoin address: wrong prefix");
+		return false; // fail("Invalid bitcoin address: wrong prefix");
 
 	auto d1 = sha256((const char *)addr_bin.data(), 21);
 	auto d2 = sha256((const char *)d1.extract_as_byte_array().data(), 32).extract_as_byte_array();
@@ -101,7 +101,7 @@ bool validate_btc_address(const std::string& address, bool is_testnet) {
 	if(	d2[0] == addr_bin[21] && d2[1] == addr_bin[22] &&
 		d2[2] == addr_bin[23] && d2[3] == addr_bin[24]) return true;
 
-	return fail(msg.c_str());
+	return false; // fail(msg.c_str());
 }
 
 /*
