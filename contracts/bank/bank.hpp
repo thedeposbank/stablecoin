@@ -18,6 +18,7 @@
 using std::string;
 using std::vector;
 
+
 using namespace eosio;
 
 CONTRACT bank : private token {
