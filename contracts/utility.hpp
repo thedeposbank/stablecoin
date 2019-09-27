@@ -241,7 +241,8 @@ int64_t get_bank_assets_value() {
 }
 
 void set_variable(const string & stat, int64_t value, const name & SCOPE) {
-	check(SCOPE == SYSTEM_SCOPE || SCOPE == PERIODIC_SCOPE, "only system or periodic scope allowed");
+	check(SCOPE == STAT_SCOPE || SCOPE == SYSTEM_SCOPE || SCOPE == PERIODIC_SCOPE,
+		"only stat, system or periodic scope allowed");
 	variables vars(BANKACCOUNT, SCOPE.value);
 	auto var_itr = vars.find(name(stat).value);
 
