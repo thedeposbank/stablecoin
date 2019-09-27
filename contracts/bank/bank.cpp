@@ -74,7 +74,8 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 		}
 		// if dbond-connected transfer
 		else if(is_dbond_contract(from)) {
-			// recieved dusd from dbonds? nothing to do
+			process_regular_transfer(from, to, quantity, memo);
+			balanceSupply();
 		}
 		else
 			fail("transfer not allowed");
@@ -147,19 +148,18 @@ void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 				check(match_memo(buyer_str, "buy"), "memo format for token purchase: 'Buy <token name>'");
 				process_mint_DUSD_for_EOS(from, quantity);
 			}
-
-			// if technical internal transaction (ex. rebalancing portfolio)
-			else if(is_technical_transfer(token_contract, from, quantity, memo)) {
-				// nothing to do, look at the bottom
-			}
 			else
 				fail("transfer not allowed");
 		}
+		// if technical internal transaction (ex. rebalancing portfolio)
+		else if(is_technical_transfer(token_contract, from, quantity, memo)) {
+			// nothing to do, look at the bottom
+		}
 		
 	}
-	balanceSupply();
 	check_on_transfer(from, to, {quantity, token_contract}, memo);
 	check_on_system_change();
+	balanceSupply();
 }
 
 ACTION bank::issue( name to, asset quantity, string memo ) {
@@ -215,7 +215,7 @@ ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
 }
 
 ACTION bank::listdpssale(asset target_total_supply, asset price) {
-	require_auth(_self);
+	require_auth(ADMINACCOUNT);
 	check(target_total_supply.symbol == DPS, "as target_supply only DPS allowed");
 	check(price.symbol == DUSD, "as price only DUSD allowed");
 

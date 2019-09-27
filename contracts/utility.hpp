@@ -317,7 +317,7 @@ asset dps2dusd(asset dps, bool nominal) {
 		rate = ((1.0 - redeemFee) * reserveFund.amount) / dpsInCirculation.amount;
 	else
 		rate = (1.0 - redeemFee) * get_variable("dpsdusdslprc", SYSTEM_SCOPE) * 1e-8;
-	return {static_cast<int64_t>(std::round(rate * dps.amount)), DUSD}; // CHECK FOR THE PRECISION !!!
+	return {static_cast<int64_t>(std::round(rate * dps.amount)), DUSD}; // TODO: CHECK FOR THE PRECISION !!!
 }
 
 asset satoshi2dusd(int64_t satoshi_amount) {

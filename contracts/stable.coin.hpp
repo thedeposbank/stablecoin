@@ -54,7 +54,7 @@ bool fail(const char* message) {
 	return false;
 }
 
-bool is_approved_liquid_asset(extended_asset quantity){
+bool is_approved_liquid_asset(extended_asset quantity) {
 	return approved_liquid_assets.find(quantity.get_extended_symbol()) != approved_liquid_assets.end();
 }
 
