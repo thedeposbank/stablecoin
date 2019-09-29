@@ -85,6 +85,24 @@ public:
 			dblist.erase(existing);
 		}
 	}
+	/*
+	 * Erase DPS stats record, bank's DPS balance
+	 */
+	ACTION erase() {
+		require_auth(_self);
+		
+		stats stat(_self, DPS.code().raw());
+		const auto& st = stat.find(DPS.code().raw());
+		if(st != stat.end()) {
+			stat.erase(st);
+		}
+
+		accounts acnt(_self, BANKACCOUNT.value);
+		const auto& bank_acnt = acnt.find(DPS.raw());
+		if(bank_acnt != acnt.end()) {
+			acnt.erase(bank_acnt);
+		}
+	}
 	#endif
 
 	// // eosio.cdt bug workaround
