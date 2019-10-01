@@ -7,7 +7,7 @@ all: bank.wasm
 bank.wasm: bank.cpp bank.hpp ../stable.coin.hpp ../depostoken.hpp ../limitations.hpp ../utility.hpp ../limit_handlers.hpp process_exchanges.hpp
 
 %.wasm: %.cpp
-	eosio-cpp $< $(CPPFLAGS) -o $@ -I. -I.. -O3 -abigen -contract bank
+	eosio-cpp $< $(CPPFLAGS) -o $@ -I. -I.. -abigen -contract bank
 
 install: bank.wasm
 	cleos -u $(API_URL) set contract $(BANK_ACC) .

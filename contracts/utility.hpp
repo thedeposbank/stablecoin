@@ -70,6 +70,38 @@ int64_t get_variable(const string & _name, const name & scope) {
 	return table.get(name(_name).value, (_name + string(" variable not found")).c_str()).value;
 }
 
+asset dps2dusd(asset dps, bool nominal) {
+	check(dps.symbol == DPS, "wrong symbol in dps2dusd()");
+
+	// auto redeemEnableTime = get_variable("dpsrdmstart", SYSTEM_SCOPE);
+	// check(current_time_point().time_since_epoch().count() >= redeemEnableTime, "dps redeem not enabled");
+
+	// double redeemFee = 0.0;
+	// auto fee_raw = get_variable("dps.fee", SYSTEM_SCOPE);
+	// redeemFee = fee_raw * 1e-10;
+
+	// stats dps_stats(BANKACCOUNT, DPS.code().raw());
+	// accounts issuer_balances(BANKACCOUNT, BANKACCOUNT.value);
+	
+	// asset reserveFund = issuer_balances.require_find(DUSD.code().raw())->balance;
+	// asset dpsInCirculation = 
+	// 	dps_stats.require_find(DPS.code().raw())->supply -
+	// 	issuer_balances.require_find(DPS.code().raw())->balance;
+
+	// double rate;
+	// if(nominal)
+	// 	rate = ((1.0 - redeemFee) * reserveFund.amount) / dpsInCirculation.amount;
+	// else
+	// 	rate = (1.0 - redeemFee) * get_variable("dpssaleprice", SYSTEM_SCOPE) * 1e-8;
+	double rate;
+	if(nominal)
+		rate = dusdPrecision / dpsPrecision * get_variable("dpsnmnlprice", PERIODIC_SCOPE);
+	else
+		rate = dusdPrecision / dpsPrecision * get_variable("dpssaleprice", SYSTEM_SCOPE);
+
+	return {static_cast<int64_t>(std::round(rate * dps.amount)), DUSD}; // TODO: CHECK FOR THE PRECISION !!!
+}
+
 time_point get_var_upd_time(const string & _name, const name & scope) {
 	variables table(BANKACCOUNT, scope.value);
 	return table.get(name(_name).value, (_name + string(" variable not found")).c_str()).mtime;
@@ -150,7 +182,10 @@ int64_t get_usd_value(extended_asset quantity) {
 		double eos_amount = quantity.quantity.amount * 1e-4;
 		return int64_t(round(eos_amount * eos_price));
 	}
-	// TODO: "quantity" may be dbond:
+	if(quantity.quantity.symbol == DPS && quantity.contract == BANKACCOUNT) {
+		return dps2dusd(quantity.quantity, true).amount; // TODO: should account at nominal, right?
+	}
+	// "quantity" is dbond:
 	extended_asset dbond_price = dbonds::get_price(quantity.contract, quantity.quantity.symbol.code());
 	check(dbond_price.contract == BANKACCOUNT && dbond_price.quantity.symbol == DUSD, "get_usd_value not supported with this asset");
 	return quantity.quantity.amount * dbond_price.quantity.amount / pow(10, quantity.quantity.symbol.precision());
@@ -282,42 +317,14 @@ int64_t get_supply(const symbol & token) {
 
 asset dusd2dps(asset dusd, bool nominal) {
 	check(dusd.symbol == DUSD, "wrong symbol in dusd2dps()");
-	stats dpsStats(BANKACCOUNT, DPS.code().raw());
-	asset dpsSupply = dpsStats.require_find(DPS.code().raw())->supply;
 
-	double rate;
+	double rate_;
 	if(nominal)
-		rate = dusdPrecision / dpsPrecision * 1e-8 * get_variable("dps.price", PERIODIC_SCOPE);
+		rate_ = dpsPrecision / get_variable("dpsnmnlprice", PERIODIC_SCOPE);
 	else
-		rate = dusdPrecision / dpsPrecision * 1e-8 * get_variable("dpsdusdslprc", SYSTEM_SCOPE);
+		rate_ = dpsPrecision / get_variable("dpssaleprice", SYSTEM_SCOPE);
 
-	return {static_cast<int64_t>(std::round(dusd.amount / rate)), DPS};
-}
-
-asset dps2dusd(asset dps, bool nominal) {
-	check(dps.symbol == DPS, "wrong symbol in dps2dusd()");
-
-	auto redeemEnableTime = get_variable("dps.redeem", SYSTEM_SCOPE);
-	check(current_time_point().time_since_epoch().count() >= redeemEnableTime, "dps redeem not enabled");
-
-	double redeemFee = 0.0;
-	auto fee_raw = get_variable("dps.fee", SYSTEM_SCOPE);
-	redeemFee = fee_raw * 1e-10;
-
-	stats dps_stats(BANKACCOUNT, DPS.code().raw());
-	accounts issuer_balances(BANKACCOUNT, BANKACCOUNT.value);
-	
-	asset reserveFund = issuer_balances.require_find(DUSD.code().raw())->balance;
-	asset dpsInCirculation = 
-		dps_stats.require_find(DPS.code().raw())->supply -
-		issuer_balances.require_find(DPS.code().raw())->balance;
-
-	double rate;
-	if(nominal)
-		rate = ((1.0 - redeemFee) * reserveFund.amount) / dpsInCirculation.amount;
-	else
-		rate = (1.0 - redeemFee) * get_variable("dpsdusdslprc", SYSTEM_SCOPE) * 1e-8;
-	return {static_cast<int64_t>(std::round(rate * dps.amount)), DUSD}; // TODO: CHECK FOR THE PRECISION !!!
+	return {static_cast<int64_t>(std::round(dusd.amount * rate_)), DPS};
 }
 
 asset satoshi2dusd(int64_t satoshi_amount) {

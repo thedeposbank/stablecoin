@@ -167,7 +167,8 @@ protected:
 
 void token::check_transfer(name from, name to, asset quantity, string memo){
 	check( from != to, "cannot transfer to self" );
-	require_auth( from );
+	if(!has_auth(BANKACCOUNT) && !has_auth(CUSTODIAN))
+		require_auth( from );
 	check( is_account( to ), "to account does not exist");
 	auto sym = quantity.symbol.code();
 	stats statstable( _self, sym.raw() );
@@ -262,11 +263,16 @@ void token::sub_balance( name owner, asset value )
 	accounts from_acnts( _self, owner.value );
 
 	const auto& from = from_acnts.get( value.symbol.code().raw(), "no balance object found" );
-	check( from.balance.amount >= value.amount, "overdrawn balance" );
 
 #ifdef DEBUG
+	if(from.balance.amount < value.amount) {
+		print("overdrawn balance: ", value, " > ", from.balance, "\n"); check(false, "bye");
+	}
+
 	name ram_payer = _self;
 #else
+	check( from.balance.amount >= value.amount, "overdrawn balance" );
+
 	name ram_payer = owner;
 #endif
 	from_acnts.modify( from, ram_payer, [&]( auto& a ) {

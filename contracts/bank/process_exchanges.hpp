@@ -61,7 +61,7 @@ void bank::process_exchange_DUSD_for_DPS(name from, name to, asset quantity, str
 
 	// transfer to dev fund
 	if(dps_to_dev.amount != 0)
-		SEND_INLINE_ACTION(*this, transfer, {{from, "active"_n}}, {from, DEVELACCOUNT, dps_to_dev, memo});
+		SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, DEVELACCOUNT, dps_to_dev, memo});
 	
 	// transfer DPS
 	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dps_quantity, "DPS for DUSD"});
@@ -153,7 +153,7 @@ void bank::process_redeem_DPS_for_BTC(name from, name to, asset quantity, string
 void bank::process_mint_DPS_for_DBTC(name buyer, asset dbtc_quantity) {
 	asset dusd_quantity = satoshi2dusd(dbtc_quantity.amount);
 	asset dps_to_dev_fund;
-	asset dps_quantity = dusd2dps(dusd_quantity, true);
+	asset dps_quantity = dusd2dps(dusd_quantity, false);
 	splitToDev(dps_quantity, dps_to_dev_fund);
 
 	SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, dusd_quantity, "DUSD for DBTC"});

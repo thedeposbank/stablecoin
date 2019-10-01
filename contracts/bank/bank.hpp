@@ -86,21 +86,23 @@ public:
 		}
 	}
 	/*
-	 * Erase DPS stats record, bank's DPS balance
+	 * Erase DPS stats record and DPS balances of given accounts
 	 */
-	ACTION erase() {
+	ACTION erase(const vector<name>& names) {
 		require_auth(_self);
-		
+
 		stats stat(_self, DPS.code().raw());
 		const auto& st = stat.find(DPS.code().raw());
 		if(st != stat.end()) {
 			stat.erase(st);
 		}
 
-		accounts acnt(_self, BANKACCOUNT.value);
-		const auto& bank_acnt = acnt.find(DPS.raw());
-		if(bank_acnt != acnt.end()) {
-			acnt.erase(bank_acnt);
+		for(auto n : names) {
+			accounts acnts(_self, n.value);
+			const auto& acnt = acnts.find(DPS.code().raw());
+			if(acnt != acnts.end()) {
+				acnts.erase(acnt);
+			}
 		}
 	}
 	#endif

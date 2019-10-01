@@ -1,5 +1,7 @@
 #!/bin/bash
 
+FUNCTIONS_SH=true
+
 function must_pass() {
 	testname="$1"
 	shift 1

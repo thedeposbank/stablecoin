@@ -220,12 +220,12 @@ ACTION bank::listdpssale(asset target_total_supply, asset price) {
 	check(price.symbol == DUSD, "as price only DUSD allowed");
 
 	stats statstable(_self, DPS.code().raw());
-	auto& st = statstable.get(DPS.code().raw());
+	const auto& st = statstable.get(DPS.code().raw());
 
 	asset dps_to_issue = target_total_supply - st.supply;
 	SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {BANKACCOUNT, dps_to_issue, "issue dps for further sale"});
 
-	set_variable("dpsdusdslprc", price.amount, SYSTEM_SCOPE);
+	set_variable("dpssaleprice", price.amount, SYSTEM_SCOPE);
 }
 
 void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buyer, extended_asset recieved_asset, bool is_sell) {
@@ -300,7 +300,7 @@ void bank::balanceSupply() {
 	variables sysvars(_self, SYSTEM_SCOPE.value);
 
 	int64_t maxSupplуErrorCents = 0;
-	auto itr = sysvars.find("maxsupperror"_n.value);
+	auto itr = sysvars.find("maxsupplerr"_n.value);
 	if(itr != sysvars.end())
 		maxSupplуErrorCents = itr->value / 1000000;
 

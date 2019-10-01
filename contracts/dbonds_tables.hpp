@@ -83,6 +83,9 @@ namespace dbonds {
 		stats statstable(dbonds_contract, dbond_id.raw());
 		const auto& st = statstable.get(dbond_id.raw(), "dbond not found");
 		fc_dbond_index fcdb_stat(dbonds_contract, st.issuer.value);
+		if(fcdb_stat.find(dbond_id.raw()) == fcdb_stat.end()) {
+			print("dbond ", dbond_id, "@", dbonds_contract, " not found in fcdb_stat table"); check(false, "bye");
+		}
 		const auto& fcdb_info = fcdb_stat.get(dbond_id.raw(), "FATAL ERROR: dbond not found in fc_dbond table");
 		return fcdb_info.current_price;
 	}
