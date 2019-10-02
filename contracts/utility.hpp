@@ -70,6 +70,27 @@ int64_t get_variable(const string & _name, const name & scope) {
 	return table.get(name(_name).value, (_name + string(" variable not found")).c_str()).value;
 }
 
+void set_variable(name var_name, int64_t value, name SCOPE) {
+	check(SCOPE == STAT_SCOPE || SCOPE == SYSTEM_SCOPE || SCOPE == PERIODIC_SCOPE,
+		"only stat, system or periodic scope allowed");
+	variables vars(BANKACCOUNT, SCOPE.value);
+	auto var_itr = vars.find(var_name.value);
+
+	if(var_itr == vars.end()) {
+		vars.emplace(BANKACCOUNT, [&](auto& new_var) {
+			new_var.var_name = var_name;
+			new_var.value = value;
+			new_var.mtime = current_time_point();
+		});
+	}
+	else{
+		vars.modify(var_itr, BANKACCOUNT, [&](auto& var) {
+			var.value = value;
+			var.mtime = current_time_point();
+		});
+	}
+}
+
 asset dusd2dps(asset dusd, bool nominal) {
 	check(dusd.symbol == DUSD, "wrong symbol in dusd2dps()");
 
@@ -85,31 +106,28 @@ asset dusd2dps(asset dusd, bool nominal) {
 asset dps2dusd(asset dps, bool nominal) {
 	check(dps.symbol == DPS, "wrong symbol in dps2dusd()");
 
-	// auto redeemEnableTime = get_variable("dpsrdmstart", SYSTEM_SCOPE);
-	// check(current_time_point().time_since_epoch().count() >= redeemEnableTime, "dps redeem not enabled");
+	auto fee_raw = get_variable("dps.fee", SYSTEM_SCOPE);
+	double redeemFee = fee_raw * 1e-10;
 
-	// double redeemFee = 0.0;
-	// auto fee_raw = get_variable("dps.fee", SYSTEM_SCOPE);
-	// redeemFee = fee_raw * 1e-10;
-
-	// stats dps_stats(BANKACCOUNT, DPS.code().raw());
-	// accounts issuer_balances(BANKACCOUNT, BANKACCOUNT.value);
-	
-	// asset reserveFund = issuer_balances.require_find(DUSD.code().raw())->balance;
-	// asset dpsInCirculation = 
-	// 	dps_stats.require_find(DPS.code().raw())->supply -
-	// 	issuer_balances.require_find(DPS.code().raw())->balance;
-
-	// double rate;
-	// if(nominal)
-	// 	rate = ((1.0 - redeemFee) * reserveFund.amount) / dpsInCirculation.amount;
-	// else
-	// 	rate = (1.0 - redeemFee) * get_variable("dpssaleprice", SYSTEM_SCOPE) * 1e-8;
 	double rate;
-	if(nominal)
-		rate = get_variable("dpsnmnlprice", PERIODIC_SCOPE) / dpsPrecision;
+	if(nominal) {
+		auto redeemEnableTime = get_variable("dpsrdmstart", SYSTEM_SCOPE);
+		check(current_time_point().time_since_epoch().count() >= redeemEnableTime, "dps redeem not enabled");
+
+		stats dps_stats(BANKACCOUNT, DPS.code().raw());
+		accounts issuer_balances(BANKACCOUNT, BANKACCOUNT.value);
+		
+		asset reserveFund = issuer_balances.get(DUSD.code().raw()).balance;
+		asset dpsInCirculation = 
+			dps_stats.get(DPS.code().raw()).supply -
+			issuer_balances.get(DPS.code().raw()).balance;
+
+		rate = ((1.0 - redeemFee) * reserveFund.amount) / dpsInCirculation.amount;
+		uint64_t dps_nominal_price = reserveFund.amount / dpsPrecision;
+		set_variable("dpsnmnlprice"_n, dps_nominal_price, PERIODIC_SCOPE);
+	}
 	else
-		rate = get_variable("dpssaleprice", SYSTEM_SCOPE) / dpsPrecision;
+		rate = (1.0 - redeemFee) * get_variable("dpssaleprice", SYSTEM_SCOPE) / dpsPrecision;
 
 	return {static_cast<int64_t>(std::round(rate * dps.amount)), DUSD}; // TODO: CHECK FOR THE PRECISION !!!
 }
@@ -285,27 +303,6 @@ int64_t get_bank_assets_value() {
 
 	return get_usd_value(asset(btc_balance, DBTC)) + get_usd_value(asset(get_balance(BANKACCOUNT, EOS), EOS)) 
 			+ get_dbonds_assets_value();
-}
-
-void set_variable(const string & stat, int64_t value, const name & SCOPE) {
-	check(SCOPE == STAT_SCOPE || SCOPE == SYSTEM_SCOPE || SCOPE == PERIODIC_SCOPE,
-		"only stat, system or periodic scope allowed");
-	variables vars(BANKACCOUNT, SCOPE.value);
-	auto var_itr = vars.find(name(stat).value);
-
-	if(var_itr == vars.end()) {
-		vars.emplace(BANKACCOUNT, [&](auto& new_var) {
-			new_var.var_name = name(stat);
-			new_var.value = value;
-			new_var.mtime = current_time_point();
-		});
-	}
-	else{
-		vars.modify(var_itr, BANKACCOUNT, [&](auto& var) {
-			var.value = value;
-			var.mtime = current_time_point();
-		});
-	}
 }
 
 int64_t get_bank_capital_value() {

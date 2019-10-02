@@ -48,8 +48,10 @@ void bank::process_exchange_DUSD_for_DPS(name from, name to, asset quantity, str
 	asset dps_quantity_requested = dusd2dps(quantity, false);
 	asset dps_quantity = dps_quantity_requested;
 	dps_quantity.amount = min(dps_quantity.amount, get_balance(_self, DPS));
-	asset change = dps2dusd(dps_quantity_requested - dps_quantity, false);
-	// print("change: ", change); check(false, "bye");
+	// asset change = dps2dusd(dps_quantity_requested - dps_quantity, false); // this is wrong, dps2dusd substracts fee
+	int64_t change_amount = get_variable("dpssaleprice", SYSTEM_SCOPE) / dpsPrecision
+		* (dps_quantity_requested.amount - dps_quantity.amount);
+	asset change{int64_t(change_amount), DUSD};
 
 	check(dps_quantity.amount > 0, "there is no DPS for sale at the moment");
 
@@ -59,16 +61,16 @@ void bank::process_exchange_DUSD_for_DPS(name from, name to, asset quantity, str
 	// transfer DUSD
 	sub_balance(from, quantity);
 	add_balance(BANKACCOUNT, quantity, payer);
-
-	// issue and transfer to dev fundround
-	if(dps_to_dev.amount != 0)
-		SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {DEVELACCOUNT, dps_to_dev, memo});
 	
 	// transfer DPS
 	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dps_quantity, "DPS for DUSD"});
 
 	if(change.amount > 0)
 		SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, change, "change DUSD from DPS purchase"});
+
+	// issue and transfer to dev fundround
+	if(dps_to_dev.amount != 0)
+		SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {DEVELACCOUNT, dps_to_dev, memo});
 }
 
 void bank::process_redeem_DUSD_for_DBTC(name from, name to, asset quantity, string memo) {
@@ -113,7 +115,6 @@ void bank::process_redeem_DPS_for_DUSD(name from, name to, asset quantity, strin
 	// transfer DPS to issuer.
 	sub_balance(from, quantity);
 	add_balance(BANKACCOUNT, quantity, payer);
-
 	
 	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dusdQuantity, "DPS for DUSD sell"});
 }

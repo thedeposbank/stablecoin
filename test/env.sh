@@ -5,6 +5,7 @@ export TESTACC=depostest114
 export BUYER=depostest115
 export BANK_ACC=thedeposbank
 export ADMIN_ACC=deposadmin11
+export DEVELACC=deposdevelop
 export API_URL="http://jungle2.cryptolions.io"
 
 export dps_maximum_supply="1000000.00000000 DPS"

@@ -44,6 +44,7 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 	// if transfer from _self then do service transfer
 	else if(from == BANKACCOUNT) {
 		process_service_transfer(from, to, quantity, memo);
+		return;
 	}
 
 	// if to == _self and asset is DUSD
@@ -225,7 +226,7 @@ ACTION bank::listdpssale(asset target_total_supply, asset price) {
 	asset dps_to_issue = target_total_supply - st.supply;
 	SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {BANKACCOUNT, dps_to_issue, "issue dps for further sale"});
 
-	set_variable("dpssaleprice", price.amount, SYSTEM_SCOPE);
+	set_variable("dpssaleprice"_n, price.amount, SYSTEM_SCOPE);
 }
 
 void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buyer, extended_asset recieved_asset, bool is_sell) {
