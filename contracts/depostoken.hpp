@@ -266,7 +266,7 @@ void token::sub_balance( name owner, asset value )
 
 #ifdef DEBUG
 	if(from.balance.amount < value.amount) {
-		print("overdrawn balance: ", value, " > ", from.balance, "\n"); check(false, "bye");
+		print("overdrawn balance: ", value, " > ", from.balance, "\n"); check(false, "");
 	}
 
 	name ram_payer = _self;

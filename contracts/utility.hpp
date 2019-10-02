@@ -70,6 +70,18 @@ int64_t get_variable(const string & _name, const name & scope) {
 	return table.get(name(_name).value, (_name + string(" variable not found")).c_str()).value;
 }
 
+asset dusd2dps(asset dusd, bool nominal) {
+	check(dusd.symbol == DUSD, "wrong symbol in dusd2dps()");
+
+	double rate_;
+	if(nominal)
+		rate_ = dpsPrecision / get_variable("dpsnmnlprice", PERIODIC_SCOPE);
+	else
+		rate_ = dpsPrecision / get_variable("dpssaleprice", SYSTEM_SCOPE);
+
+	return {static_cast<int64_t>(std::round(dusd.amount * rate_)), DPS};
+}
+
 asset dps2dusd(asset dps, bool nominal) {
 	check(dps.symbol == DPS, "wrong symbol in dps2dusd()");
 
@@ -95,9 +107,9 @@ asset dps2dusd(asset dps, bool nominal) {
 	// 	rate = (1.0 - redeemFee) * get_variable("dpssaleprice", SYSTEM_SCOPE) * 1e-8;
 	double rate;
 	if(nominal)
-		rate = dusdPrecision / dpsPrecision * get_variable("dpsnmnlprice", PERIODIC_SCOPE);
+		rate = get_variable("dpsnmnlprice", PERIODIC_SCOPE) / dpsPrecision;
 	else
-		rate = dusdPrecision / dpsPrecision * get_variable("dpssaleprice", SYSTEM_SCOPE);
+		rate = get_variable("dpssaleprice", SYSTEM_SCOPE) / dpsPrecision;
 
 	return {static_cast<int64_t>(std::round(rate * dps.amount)), DUSD}; // TODO: CHECK FOR THE PRECISION !!!
 }
@@ -313,18 +325,6 @@ int64_t get_supply(const symbol & token) {
 
 	fail("token of that type not supported");
 	return 0;
-}
-
-asset dusd2dps(asset dusd, bool nominal) {
-	check(dusd.symbol == DUSD, "wrong symbol in dusd2dps()");
-
-	double rate_;
-	if(nominal)
-		rate_ = dpsPrecision / get_variable("dpsnmnlprice", PERIODIC_SCOPE);
-	else
-		rate_ = dpsPrecision / get_variable("dpssaleprice", SYSTEM_SCOPE);
-
-	return {static_cast<int64_t>(std::round(dusd.amount * rate_)), DPS};
 }
 
 asset satoshi2dusd(int64_t satoshi_amount) {

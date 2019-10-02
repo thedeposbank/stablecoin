@@ -49,6 +49,7 @@ void bank::process_exchange_DUSD_for_DPS(name from, name to, asset quantity, str
 	asset dps_quantity = dps_quantity_requested;
 	dps_quantity.amount = min(dps_quantity.amount, get_balance(_self, DPS));
 	asset change = dps2dusd(dps_quantity_requested - dps_quantity, false);
+	// print("change: ", change); check(false, "bye");
 
 	check(dps_quantity.amount > 0, "there is no DPS for sale at the moment");
 
@@ -59,9 +60,9 @@ void bank::process_exchange_DUSD_for_DPS(name from, name to, asset quantity, str
 	sub_balance(from, quantity);
 	add_balance(BANKACCOUNT, quantity, payer);
 
-	// transfer to dev fund
+	// issue and transfer to dev fundround
 	if(dps_to_dev.amount != 0)
-		SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, DEVELACCOUNT, dps_to_dev, memo});
+		SEND_INLINE_ACTION(*this, issue, {{BANKACCOUNT, "active"_n}}, {DEVELACCOUNT, dps_to_dev, memo});
 	
 	// transfer DPS
 	SEND_INLINE_ACTION(*this, transfer, {{BANKACCOUNT, "active"_n}}, {BANKACCOUNT, from, dps_quantity, "DPS for DUSD"});
