@@ -20,8 +20,6 @@ using namespace dbonds;
 
 ACTION bank::transfer(name from, name to, asset quantity, string memo)
 {
-	// print("transfer action. self: ", get_self(), " code: ", get_code(), "\n");
-
 	check_transfer(from, to, quantity, memo);
 
 	check_main_switch();
@@ -76,7 +74,6 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 			// if EOS is approved and supported
 			if(is_approved_liquid_asset(extended_asset(asset(0, EOS), EOSIOTOKEN))) {
 				// redeem DUSD for EOS
-				print("got here\n");
 				if(match_memo(memo, "Redeem for EOS")) {
 					process_redeem_DUSD_for_EOS(from, to, quantity, memo);
 					valid_transfer = true;
@@ -136,8 +133,8 @@ void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 			fail("transfer not allowed 6");
 		}
 		// if DUSD mint request
-		if(is_dusd_mint(from, to, extended_asset(quantity, token_contract), memo)) {
-			check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
+		if(is_dusd_mint(from, to, ex_asset, memo)) {
+			check_on_transfer(from, to, ex_asset, memo);
 			// parse memo
 			string buyer_str, token_str;
 			split_memo(memo, buyer_str, token_str);

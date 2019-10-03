@@ -89,7 +89,7 @@ void check_liquidity(bool internal_trigger) {
 	double soft_value_low = liq_trg / 2;
 	double soft_value_high = liq_trg * 1.5;
 	double hard_value_low = 0;
-	double hard_value_high = liq_trg * 2;
+	double hard_value_high = get_supply(DUSD); //liq_trg * 2;
 
 	double current_liq_pool = 1.0 * get_liquidity_pool_value();
 

@@ -10,7 +10,23 @@ if [[ -z "$FUNCTIONS_SH" ]] ; then
 	source ./functions.sh
 fi
 
-function erase() {
+# parameters: <variable name> <variable value>
+setvar() {
+	cleos -u $API_URL push action $BANK_ACC setvar "[\"system\", \"$1\", $2]" $ADMIN_ACC@active
+	echo "set variable $1 with value $2"
+}
+
+# parameters: <variable name> <variable value>
+setperiodic() {
+	cleos -u $API_URL push action $BANK_ACC setvar "[\"periodic\", \"$1\", $2]" $ORACLE_ACC@active
+}
+
+# parameters: <variable name> <variable value>
+setdbonds() {
+	cleos -u $API_URL push action $BANK_ACC setvar "[\"dbonds\", \"$1\", $2]" $BANK_ACC@active
+}
+
+function erase_all() {
 	sleep 3
 	names="["
 	for name in "$@"
@@ -18,7 +34,9 @@ function erase() {
 		names="$names\"$name\", "
 	done
 	names="${names%??}]"
-	cleos -u $API_URL push action "$BANK_ACC" erase "[$names]" -p $BANK_ACC@active
+	cleos -u $API_URL push action "$BANK_ACC" erase "[$names, [\"DPS\", \"DUSD\"], false]" -p $BANK_ACC@active
+	cleos -u $API_URL push action "$BANK_ACC" erase "[[], [\"DPS\", \"DUSD\"], false]" -p $BANK_ACC@active
+	cleos -u $API_URL push action "$BANK_ACC" erase "[[\"system\", \"periodic\", \"dbonds\", \"stat\"], [], true]" -p $BANK_ACC@active
 }
 
 function transfer {

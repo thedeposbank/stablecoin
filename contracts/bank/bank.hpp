@@ -79,7 +79,7 @@ public:
 	 *
 	 */
 	[[eosio::on_notify("*::erase")]]
-	void ondbonderase(name owner, dbond_id_class dbond_id) {
+	void ondbonderase(vector<name> owners, dbond_id_class dbond_id) {
 		name dbond_contract = get_first_receiver();
 		authorized_dbonds dblist(_self, _self.value);
 		auto existing = dblist.find(dbond_id.raw());
@@ -88,22 +88,44 @@ public:
 		}
 	}
 	/*
-	 * Erase DPS stats record and DPS balances of given accounts
+	 * If not 'erase_variables':
+	 *   Erase accounts listed in 'names' for given token symbols.
+	 *   If accounts vector is empty, erase stats records too.
+	 *   Erase authorized dbonds table.
+	 * If 'erase_variables':
+	 *   Erase variables' table scopes, listed in 'names'.
 	 */
-	ACTION erase(const vector<name>& names) {
+	ACTION erase(const vector<name>& names, const vector<symbol_code>& tokens, bool erase_variables) {
 		require_auth(_self);
 
-		stats stat(_self, DPS.code().raw());
-		const auto& st = stat.find(DPS.code().raw());
-		if(st != stat.end()) {
-			stat.erase(st);
+		if(erase_variables) {
+			for(auto scope : names) {
+				variables vars(_self, scope.value);
+				for(auto itr = vars.begin(); itr != vars.end();) {
+					itr = vars.erase(itr);
+				}
+			}
 		}
-
-		for(auto n : names) {
-			accounts acnts(_self, n.value);
-			const auto& acnt = acnts.find(DPS.code().raw());
-			if(acnt != acnts.end()) {
-				acnts.erase(acnt);
+		else {
+			for(auto n : names) {
+				accounts acnts(_self, n.value);
+				for(auto t : tokens) {
+					auto acc = acnts.find(t.raw());
+					if(acc != acnts.end())
+						acnts.erase(acc);
+				}
+			}
+			if(names.size() == 0) {
+				for(auto t : tokens) {
+					stats statstable(_self, t.raw());
+					for(auto itr = statstable.begin(); itr != statstable.end();) {
+						itr = statstable.erase(itr);
+					}
+				}
+			}
+			authorized_dbonds db(_self, _self.value);
+			for(auto itr = db.begin(); itr != db.end();) {
+				itr = db.erase(itr);
 			}
 		}
 	}
