@@ -111,7 +111,7 @@ asset dps2dusd(asset dps, bool nominal) {
 
 	double rate;
 	if(nominal) {
-		auto redeemEnableTime = get_variable("dpsrdmstart", SYSTEM_SCOPE);
+		auto redeemEnableTime = get_variable("dpsrdmtime", SYSTEM_SCOPE);
 		check(current_time_point().time_since_epoch().count() >= redeemEnableTime, "dps redeem not enabled");
 
 		stats dps_stats(BANKACCOUNT, DPS.code().raw());
@@ -351,7 +351,7 @@ asset eos2dusd(int64_t eoshi_amount) {
 	// "btcusd", "fee.mint" variables are stored in scale 1e8
 	double mintFee = 1e-8 * sys_vars.require_find(("fee.mint"_n).value, "fee.mint (mint fee in percent) variable not found")->value;
 	double rate = (100.0 - mintFee) * 1e-10 * periodic_vars.require_find(("eosusd"_n).value, "eosusd (exchange rate) variable not found")->value;
-	int64_t amount = std::round(rate * eoshi_amount / 1e6); // hardcode: DUSD precision is 2
+	int64_t amount = std::round(rate * eoshi_amount / 1e2); // hardcode: DUSD precision is 2
 	return {amount, DUSD};
 }
 
@@ -362,7 +362,7 @@ int64_t dusd2eos(asset dusd) {
 	// "btcusd", "fee.redeem" variables are stored in scale 1e8
 	double redeemFee = 1e-8 * sys_vars.require_find(("fee.redeem"_n).value, "fee.redeem (redemption fee) variable not found")->value;
 	double rate = (100 + redeemFee) * 1e-10 * periodic_vars.require_find(("eosusd"_n).value, "eosusd (exchange rate) variable not found")->value;
-	int64_t eoshi_amount = std::round(1e6 * dusd.amount / rate); // hardcode: DUSD precision is 2
+	int64_t eoshi_amount = std::round(1e2 * dusd.amount / rate); // hardcode: DUSD precision is 2
 	return eoshi_amount;
 }
 

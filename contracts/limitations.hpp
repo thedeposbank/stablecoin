@@ -64,7 +64,7 @@ void check_limits(name from, name to, extended_asset quantity, const string& mem
 	}
 }
 
-double check_bitmex_balance_ratio(){
+double check_bitmex_balance_ratio() {
 	// returns share (of hedge assets) in format 0.*
 	// if positive => exceeds maximum value
 	// if negatime => below minimum value
@@ -81,27 +81,27 @@ double check_bitmex_balance_ratio(){
 	return 0.;
 }
 
-void check_liquidity(bool internal_trigger){
-	double soft_margin = 1.0 - 1.0 * get_variable("bitmex.max", SYSTEM_SCOPE) * 1e-10;
-	double hard_margin = get_hard_margin(soft_margin);
-	double soft_value = get_hedge_assets_value() * soft_margin;
-	double hard_value = get_hedge_assets_value() * hard_margin;
+void check_liquidity(bool internal_trigger) {
+	// checks that liquidity pool is not far from target
+	// we allow the liquidity pool to be 0
+
+	double liq_trg = get_bank_capital_value() / 2;
+	double soft_value_low = liq_trg / 2;
+	double soft_value_high = liq_trg * 1.5;
+	double hard_value_low = 0;
+	double hard_value_high = liq_trg * 2;
 
 	double current_liq_pool = 1.0 * get_liquidity_pool_value();
 
-	print("\n===========check liquidity");
-	print("\b bitmex.max " , 1.0 * get_variable("bitmex.max", SYSTEM_SCOPE) * 1e-10);
-	print("\nsoft_margin ", soft_margin);
-	print("\nhard_margin ", hard_margin);
-	print("\nsoft_value ", soft_value);
-	print("\nhard_value ", hard_value);
-	print("\ncur liq pool ", current_liq_pool);
-
-	if(lt(current_liq_pool, soft_value))
-	{
+	if(lt(current_liq_pool, soft_value_low)) {
 		on_lack_of_liquidity();
-		if(!internal_trigger && lt(current_liq_pool, hard_value))
+		if(!internal_trigger && lt(current_liq_pool, hard_value_low))
 			fail("there is not enough liquidity for your order, reduce or try later");
+	}
+	if(gt(current_liq_pool, soft_value_high)) {
+		on_too_much_liquidity();
+		if(!internal_trigger && gt(current_liq_pool, hard_value_high))
+			fail("thedeposbank needs to rebalance assets, reduce or try later");	
 	}
 }
 
@@ -198,8 +198,8 @@ void decay_used_volume(){
 
 void check_on_transfer(name from, name to, extended_asset quantity, const string & memo){
 	decay_used_volume();
-	check_limits(from, to, quantity, memo);
 	update_statistics_on_trade(from, to, quantity, memo);
+	check_limits(from, to, quantity, memo);
 }
 
 void check_on_system_change(bool internal_trigger=false){

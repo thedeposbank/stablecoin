@@ -12,18 +12,6 @@ if [[ -z "$COMMON_SH" ]] ; then
 	source ./common.sh
 fi
 
-function create_dps() {
-	sleep 3
-	cleos -u $API_URL push action "$BANK_ACC" create "[\"$BANK_ACC\", \"$dps_maximum_supply\"]" -p $BANK_ACC@active
-}
-
-function listdpssale() {
-	sleep 3
-	dps_total_supply="$1"
-	dps_listed_price="$2"
-	cleos -u $API_URL push action "$BANK_ACC" listdpssale "[\"$dps_total_supply\", \"$dps_listed_price\"]" -p $ADMIN_ACC@active
-}
-
 title "DPS listing and selling"
 
 title "trying to sell when DPS not issued"

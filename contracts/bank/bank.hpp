@@ -52,6 +52,8 @@ public:
 
 	ACTION listdpssale(asset target_total_supply, asset price);
 
+	ACTION blncsppl();
+
 	/*
 	 * New token actions and methods
 	 */
@@ -160,7 +162,6 @@ private:
 	typedef eosio::multi_index< "variables"_n, variable > variables;
 
 	void splitToDev(const asset& quantity, asset& toDev);
-	void balanceSupply();
 
 	void process_regular_transfer(name from, name to, asset quantity, string memo);
 	void process_service_transfer(name from, name to, asset quantity, string memo);

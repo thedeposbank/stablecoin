@@ -31,7 +31,7 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 		{
 			process_regular_transfer(from, to, quantity, memo);
 			check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
-			balanceSupply();
+			SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 			return;
 		}
 #endif
@@ -39,51 +39,65 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 	// if regular p2p transfer or special with no reaction needed
 	if((from != BANKACCOUNT && to != BANKACCOUNT) || memo == "deny") {
 		process_regular_transfer(from, to, quantity, memo);
+		if(memo == "deny") {
+			check_on_system_change();
+		}
 	}
 
 	// if transfer from _self then do service transfer
 	else if(from == BANKACCOUNT) {
 		process_service_transfer(from, to, quantity, memo);
+		check_on_system_change();
 		return;
 	}
 
 	// if to == _self and asset is DUSD
 	else if(quantity.symbol == DUSD) {
+		check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
 		// if user transfers dusd to buy dps
 		if(match_memo(memo,"Buy DPS"))
 			process_exchange_DUSD_for_DPS(from, to, quantity, memo);
 		// if transfer is to redeem dusd for dbtc/btc/eos
 		else if(is_dusd_redeem(from, to, extended_asset(quantity, _self), memo)) {
+			bool valid_transfer = false;
 			if(is_approved_liquid_asset(extended_asset(asset(0, DBTC), CUSTODIAN))) {
 				// redeem DUSD for DBTC
-				if(match_memo(memo, "Redeem for DBTC"))
+				if(match_memo(memo, "Redeem for DBTC")) {
 					process_redeem_DUSD_for_DBTC(from, to, quantity, memo);
+					valid_transfer = true;
+				}
 				// otherwie it is supposed, that it is BTC withdrwal via CUSTODIAN
-				else if(validate_btc_address(memo, BITCOIN_TESTNET))
+				else if(validate_btc_address(memo, BITCOIN_TESTNET)) {
 					process_redeem_DUSD_for_BTC(from, to, quantity, memo);
-				else
-					fail("transfer not allowed");
+					valid_transfer = true;
+				}
+
 			}
 			// if EOS is approved and supported
 			if(is_approved_liquid_asset(extended_asset(asset(0, EOS), EOSIOTOKEN))) {
 				// redeem DUSD for EOS
-				if(match_memo(memo, "Redeem for EOS"))
+				print("got here\n");
+				if(match_memo(memo, "Redeem for EOS")) {
 					process_redeem_DUSD_for_EOS(from, to, quantity, memo);
-				else
-					fail("transfer not allowed");
+					valid_transfer = true;
+				}
 			}
+			check(valid_transfer, "transfer not allowed 8");
 		}
 		// if dbond-connected transfer
 		else if(is_dbond_contract(from)) {
 			process_regular_transfer(from, to, quantity, memo);
-			balanceSupply();
+			check_on_system_change();
+			SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 		}
 		else
-			fail("transfer not allowed");
+			fail("transfer not allowed 3");
 	}
 
 	// if to == _self and asset is DPS
 	else if(quantity.symbol == DPS) {
+		// no check needed
+
 		// redeem DPS for DUSD, DBTC or BTC
 		if(match_memo(memo, "Redeem for DUSD"))
 			process_redeem_DPS_for_DUSD(from, to, quantity, memo);
@@ -92,13 +106,10 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 		//else if(validate_btc_address(memo, BITCOIN_TESTNET))
 		//	process_redeem_DPS_for_BTC(from, to, quantity, memo);
 		else
-			fail("transfer not allowed");
+			fail("transfer not allowed 4");
 	}
 
-	else fail("transfer not allowed");
-
-	// at the end check transfer on limits
-	check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
+	else fail("transfer not allowed 5");
 }
 
 void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
@@ -115,18 +126,18 @@ void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 
 	// if I recieve a dbond as collateral (payment was sent earlier)
 	else if(is_dbond_contract(token_contract)) {
-		// nothing to do, look at the bottom
+		check_on_system_change();
 	}
 
 	else {
 		// if not dbond, then only utility::approved_liquid_assets as in-coming transfers allowed
 		extended_asset ex_asset = extended_asset(quantity, token_contract);
 		if(!is_approved_liquid_asset(ex_asset)) {
-			fail("transfer not allowed");
+			fail("transfer not allowed 6");
 		}
-
 		// if DUSD mint request
 		if(is_dusd_mint(from, to, extended_asset(quantity, token_contract), memo)) {
+			check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
 			// parse memo
 			string buyer_str, token_str;
 			split_memo(memo, buyer_str, token_str);
@@ -142,32 +153,34 @@ void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 					check(match_memo(buyer_str, "buy"), "memo format for token purchase: 'Buy <token name>'");
 					process_mint_DUSD_for_DBTC(from, quantity);
 				}
+				return;
 			}
 
 			// if request "mint DUSD for EOS"
 			else if(ex_asset.get_extended_symbol() == extended_symbol(EOS, EOSIOTOKEN)){
 				check(match_memo(buyer_str, "buy"), "memo format for token purchase: 'Buy <token name>'");
 				process_mint_DUSD_for_EOS(from, quantity);
+				return;
 			}
 			else
-				fail("transfer not allowed");
+				fail("transfer not allowed 7");
 		}
 		// if technical internal transaction (ex. rebalancing portfolio)
 		else if(is_technical_transfer(token_contract, from, quantity, memo)) {
 			// nothing to do, look at the bottom
 		}
-		
+		else
+			fail("transfer not allowed 9");
+
 	}
-	check_on_transfer(from, to, {quantity, token_contract}, memo);
-	check_on_system_change();
-	balanceSupply();
+	SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 }
 
 ACTION bank::issue( name to, asset quantity, string memo ) {
 	token::issue(to, quantity, memo);
 	if(quantity.symbol == DUSD && memo != "supply balancing")
 	{
-		balanceSupply();
+		SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 		check_on_system_change();
 	}
 	else
@@ -176,9 +189,10 @@ ACTION bank::issue( name to, asset quantity, string memo ) {
 
 ACTION bank::retire( asset quantity, string memo ) {
 	token::retire(quantity, memo);
-	if(quantity.symbol == DUSD && memo != "supply balancing")
+	if(memo != "supply balancing")
 	{
-		balanceSupply();
+		if(quantity.symbol == DUSD)
+			SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 		check_on_system_change();
 	}
 	else
@@ -193,7 +207,7 @@ ACTION bank::setvar(name scope, name varname, int64_t value) {
 	// do it only if reserve balances and BTC/USD rate variables are set and any of them is changed by this action
 	if( scope == PERIODIC_SCOPE && (varname == "btcusd"_n || varname == "btc.bitmex"_n))
 	{
-		balanceSupply();
+		SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 	}
 	if(scope == SYSTEM_SCOPE)
 		check_on_system_change(true); // change this to false
@@ -245,6 +259,7 @@ void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buye
 
 		string memo = string{"buy "} + dbond_id.to_string() + string{" from "} + seller.to_string();
 		SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {dbond_contract, need_to_send.quantity, memo});
+
 	}
 	else{
 		need_to_send = extended_asset(fcdb_order.recieved_quantity, dbond_contract);
@@ -278,24 +293,9 @@ void bank::splitToDev(const asset& quantity, asset& toDev) {
 	toDev = asset(std::round(quantity.amount * devRatio), quantity.symbol);
 }
 
-void bank::balanceSupply() {
+ACTION bank::blncsppl() {
 	// TODO: consider in-flight redeem transactions to bitmex account
 
-	// variables vars(_self, PERIODIC_SCOPE.value);
-
-	// auto itr = vars.find("btc.bitmex"_n.value);
-	// if(itr == vars.end()) return;
-	// int64_t bitmexSatoshis = itr->value;
-
-	// itr = vars.find("btcusd"_n.value);
-	// if(itr == vars.end()) return;
-
-	// accounts accnt(CUSTODIAN, BANKACCOUNT.value);
-	// auto accnt_itr = accnt.find(DBTC.code().raw());
-	// if(accnt_itr == accnt.end()) return;
-
-	// hardcode: DUSD and BTC precision difference is -6, BTC/USD rate is 8 digits up
-	// int64_t targetSupplyCents = std::round(1e-14 * (accnt_itr->balance.amount + bitmexSatoshis) * itr->value);
 	int64_t targetSupplyCents = get_bank_assets_value();
 
 	variables sysvars(_self, SYSTEM_SCOPE.value);
@@ -308,18 +308,18 @@ void bank::balanceSupply() {
 	stats statstable(_self, DUSD.code().raw());
 	auto& st = statstable.get(DUSD.code().raw());
 
-	int64_t supplyErrorCents = st.supply.amount - targetSupplyCents;
-	if(supplyErrorCents && supplyErrorCents >= maxSupplуErrorCents) {
+	int64_t supplyErrorCents = targetSupplyCents - st.supply.amount;
+	if(supplyErrorCents < -maxSupplуErrorCents) {
 		// in order not to fail transaction, let's retire not more than we have
 		// using token::get_balance(), not ::get_balance
-		int64_t to_retire = min(supplyErrorCents, get_balance(BANKACCOUNT, DUSD));
+		int64_t to_retire = min(-supplyErrorCents, get_balance(BANKACCOUNT, DUSD));
 		if(to_retire == 0)
 			return;
 
 		SEND_INLINE_ACTION(*this, retire, {{_self, "active"_n}}, {{to_retire, DUSD}, "supply balancing"});
 	}
-	else if(supplyErrorCents && supplyErrorCents <= -maxSupplуErrorCents) {
-		SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {BANKACCOUNT, {-supplyErrorCents, DUSD}, "supply balancing"});
+	else if(supplyErrorCents > maxSupplуErrorCents) {
+		SEND_INLINE_ACTION(*this, issue, {{_self, "active"_n}}, {BANKACCOUNT, {supplyErrorCents, DUSD}, "supply balancing"});
 	}
 }
 

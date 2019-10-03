@@ -24,6 +24,7 @@ void on_switcher_check_fail(){
 }
 
 void on_lack_of_liquidity(){
+	return;
 	print("\n====== handle on_lack_of_liquidity");
 	double bitmex_target = get_variable("bitmex.trg", SYSTEM_SCOPE) * 1e-10;
 	double hedge_assets_btc_value = 1e8 * get_hedge_assets_value() / get_btc_price();
@@ -43,6 +44,7 @@ void on_lack_of_liquidity(){
 }
 
 void on_high_leverage(){
+	return;
 	print("\n====== handle on_high_leverage");
 	double bitmex_target = get_variable("bitmex.trg", SYSTEM_SCOPE) * 1e-10;
 	double hedge_assets_btc_value = 1e8 * get_hedge_assets_value() / get_btc_price();
@@ -58,5 +60,9 @@ void on_high_leverage(){
 		).send();
 	}
 
+	return;
+}
+
+void on_too_much_liquidity() {
 	return;
 }
