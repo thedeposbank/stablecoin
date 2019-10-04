@@ -351,7 +351,7 @@ void token::setvar(name scope, name varname, int64_t value) {
 		// 	return;
 		int64_t data_age = (current_time_point() - var_itr->mtime).to_seconds();
 		variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
-		int64_t min_data_age = sys_vars.require_find(("minlimitsage"_n).value, "minlimitsage is not defined")->value;
+		int64_t min_data_age = sys_vars.get(("minlimitsage"_n).value, "minlimitsage is not defined").value / 100000000;
 		check(data_age >= min_data_age, "limit change requested too early");
 
 		double max_k = sys_vars.require_find(("maxlimitprct"_n).value, "maxlimitprct is not defined")->value * 1e-10;

@@ -49,6 +49,14 @@ function get_balances {
 	echo -e "$collateral_balance $nomination_balance $payoff_balance $dbonds_balance"
 }
 
+function get_balance() {
+	
+}
+
+function evaluate_assets() {
+
+}
+
 function sub {
 	echo "$1 - $2" | bc -l
 }
@@ -94,4 +102,13 @@ function check_balances {
 			echo -e "\e[32mcheck balances OK\e[0m"
 		fi
 	done
+}
+
+function pause {
+	if [[ -n "$wait_at_each_step" ]] ; then
+		read -p "hit ENTER to continue..."
+		if [[ $? -gt 127 ]] ; then
+			echo
+		fi
+	fi
 }

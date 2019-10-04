@@ -76,7 +76,7 @@ public:
 
 	#ifdef DEBUG
 	/*
-	 *
+	 * for erasing dbonds stuff
 	 */
 	[[eosio::on_notify("*::erase")]]
 	void ondbonderase(vector<name> owners, dbond_id_class dbond_id) {

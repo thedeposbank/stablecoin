@@ -64,6 +64,47 @@ public:
 	// initiate withdrawal from hedge account to custody. amount in satoshis
 	ACTION balancehedge(int64_t amount);
 
+	#ifdef DEBUG
+	/*
+	 * Erase accounts listed in 'names' for given token symbols.
+	 * If accounts vector is empty, erase stats records too.
+	 * Erase all orders in orders and mintOrders for each given token
+	 */
+	ACTION erase(const vector<name>& names, const vector<symbol_code>& tokens) {
+		require_auth(_self);
+
+		for(auto n : names) {
+			accounts acnts(_self, n.value);
+			for(auto itr = acnts.begin(); itr != acnts.end();) {
+				itr = acnts.erase(itr);
+			}
+		}
+		if(names.size() == 0) {
+			for(auto t : tokens) {
+				stats statstable(_self, t.raw());
+				for(auto itr = statstable.begin(); itr != statstable.end();) {
+					itr = statstable.erase(itr);
+				}
+			}
+		}
+		{
+			mintOrders mo(_self, DBTC.raw());
+			for(auto itr = mo.begin(); itr != mo.end();)
+				itr = mo.erase(itr);
+		}
+		{
+			mintOrders mo(_self, DUSD.raw());
+			for(auto itr = mo.begin(); itr != mo.end();)
+				itr = mo.erase(itr);
+		}
+		{
+			redeemOrders ro(_self, DBTC.raw());
+			for(auto itr = ro.begin(); itr != ro.end();)
+				itr = ro.erase(itr);
+		}
+	}
+	#endif
+
 	/**
 	 * Called by 'transfer' action notification.
 	 * Used only to prevent mistake DPS or DUSD transfers to custodian

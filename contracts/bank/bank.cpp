@@ -204,10 +204,14 @@ ACTION bank::setvar(name scope, name varname, int64_t value) {
 	// do it only if reserve balances and BTC/USD rate variables are set and any of them is changed by this action
 	if( scope == PERIODIC_SCOPE && (varname == "btcusd"_n || varname == "btc.bitmex"_n))
 	{
+		// to resolve cross-dependencies, disable supply balancing and checks, when any of these vars is undefined
+		variables vars(_self, PERIODIC_SCOPE.value);
+		if(vars.find("btcusd"_n.value) == vars.end() || vars.find("btc.bitmex"_n.value) == vars.end())
+			return;
 		SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 	}
-	if(scope == SYSTEM_SCOPE)
-		check_on_system_change(true); // change this to false
+	// if(scope == SYSTEM_SCOPE)
+	// 	check_on_system_change(true); // change this to false
 }
 
 ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
