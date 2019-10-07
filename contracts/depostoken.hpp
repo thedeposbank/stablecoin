@@ -46,6 +46,57 @@ typedef eosio::multi_index< "accounts"_n, account > accounts;
 typedef eosio::multi_index< "stat"_n, currency_stats > stats;
 typedef eosio::multi_index< "variables"_n, variable > variables;
 
+/**
+ * Mint orders table. Scope is constant, DBTC.
+ */
+TABLE mintOrder {
+	uint64_t  id;
+	name      user;
+	name      status;
+	int64_t   btc_amount;
+	uint256_t btc_txid;
+	uint64_t  mtime;
+
+	uint64_t  primary_key()const { return id; }
+	uint64_t  get_secondary_1()const { return status.value; }
+	uint256_t get_secondary_2()const { return btc_txid; }
+};
+
+typedef eosio::multi_index<
+	"mintorders"_n,
+	mintOrder,
+	indexed_by< "status"_n, const_mem_fun<mintOrder, uint64_t, &mintOrder::get_secondary_1> >,
+	indexed_by< "btctxid"_n, const_mem_fun<mintOrder, uint256_t, &mintOrder::get_secondary_2> >
+> mintOrders;
+
+/**
+ * Redeem orders table. Scope is token symbol code.
+ * Shows order statuses:
+ * 1. status "new": record added by "transfer" action when "to" is issuer. btc_txid is unknown yet.
+ * 2. status "processing": record changed by "redeem" action. btc_txid filled with provided txid.
+ * 3. status "confirmed": record changed by "setstatus" action.
+ */
+TABLE redeemOrder {
+	uint64_t  id;
+	name      user;
+	name      status;
+	int64_t   btc_amount;
+	uint256_t btc_txid;
+	uint64_t  mtime;
+	string    btc_address;
+
+	uint64_t  primary_key()const { return id; }
+	uint64_t  get_secondary_1()const { return status.value; }
+	uint256_t get_secondary_2()const { return btc_txid; }
+};
+
+typedef eosio::multi_index<
+	"redeemorders"_n,
+	redeemOrder,
+	indexed_by< "status"_n, const_mem_fun<redeemOrder, uint64_t, &redeemOrder::get_secondary_1> >,
+	indexed_by< "btctxid"_n, const_mem_fun<redeemOrder, uint256_t, &redeemOrder::get_secondary_2> >
+> redeemOrders;
+
 class token : public contract {
 public:
 	using contract::contract;
@@ -89,17 +140,18 @@ public:
 		return st.supply;
 	}
 
-	static asset get_balance( name token_contract_account, name owner, symbol_code sym_code )
-	{
-		accounts accountstable( token_contract_account, owner.value );
-		const auto& ac = accountstable.get( sym_code.raw() );
-		return ac.balance;
-	}
+	// static asset get_balance( name token_contract_account, name owner, symbol_code sym_code )
+	// {
+	// 	accounts accountstable( token_contract_account, owner.value );
+	// 	const auto& ac = accountstable.get( sym_code.raw() );
+	// 	return ac.balance;
+	// }
 
 protected:
 
 	void sub_balance( name owner, asset value );
 	void add_balance( name owner, asset value, name ram_payer );
+	void check_transfer(name from, name to, asset quantity, string memo);
 
 	/**
 	 * arbitrary data store. scopes:
@@ -112,6 +164,24 @@ protected:
 /**
  * DEFINITIONS
  */
+
+void token::check_transfer(name from, name to, asset quantity, string memo){
+	check( from != to, "cannot transfer to self" );
+	if(!has_auth(BANKACCOUNT) && !has_auth(CUSTODIAN))
+		require_auth( from );
+	check( is_account( to ), "to account does not exist");
+	auto sym = quantity.symbol.code();
+	stats statstable( _self, sym.raw() );
+	const auto& st = statstable.get( sym.raw(), "no stats for given symbol code" );
+
+	require_recipient( from );
+	require_recipient( to );
+
+	check( quantity.is_valid(), "invalid quantity" );
+	check( quantity.amount > 0, "must transfer positive quantity" );
+	check( quantity.symbol == st.supply.symbol, "symbol precision mismatch" );
+	check( memo.size() <= 256, "memo has more than 256 bytes" );
+}
 
 void token::create( name issuer, asset maximum_supply )
 {
@@ -193,11 +263,16 @@ void token::sub_balance( name owner, asset value )
 	accounts from_acnts( _self, owner.value );
 
 	const auto& from = from_acnts.get( value.symbol.code().raw(), "no balance object found" );
-	check( from.balance.amount >= value.amount, "overdrawn balance" );
 
 #ifdef DEBUG
+	if(from.balance.amount < value.amount) {
+		print("overdrawn balance: ", value, " > ", from.balance, "\n"); check(false, "");
+	}
+
 	name ram_payer = _self;
 #else
+	check( from.balance.amount >= value.amount, "overdrawn balance" );
+
 	name ram_payer = owner;
 #endif
 	from_acnts.modify( from, ram_payer, [&]( auto& a ) {
@@ -250,14 +325,17 @@ void token::close( name owner, const symbol& symbol )
 }
 
 void token::setvar(name scope, name varname, int64_t value) {
-	if(scope == SYSTEM_SCOPE)
-		require_auth(ADMINACCOUNT);
-	else if(scope == PERIODIC_SCOPE)
-		require_auth(ORACLEACC);
-	else if(scope == STAT_SCOPE)
-		require_auth(BANKACCOUNT);
-	else
-		fail("arbitrary scope is not allowed");
+	switch(scope) {
+		case SYSTEM_SCOPE:
+			require_auth(ADMINACCOUNT); break;
+		case PERIODIC_SCOPE:
+			require_auth(ORACLEACC); break;
+		case STAT_SCOPE:
+		case DBONDS_SCOPE:
+			require_auth(BANKACCOUNT); break;
+		default:
+			fail("arbitrary scope is not allowed");
+	}
 
 	variables vars(_self, scope.value);
 	auto var_itr = vars.find(varname.value);
@@ -273,7 +351,7 @@ void token::setvar(name scope, name varname, int64_t value) {
 		// 	return;
 		int64_t data_age = (current_time_point() - var_itr->mtime).to_seconds();
 		variables sys_vars(BANKACCOUNT, SYSTEM_SCOPE.value);
-		int64_t min_data_age = sys_vars.require_find(("minlimitsage"_n).value, "minlimitsage is not defined")->value;
+		int64_t min_data_age = sys_vars.get(("minlimitsage"_n).value, "minlimitsage is not defined").value / 100000000;
 		check(data_age >= min_data_age, "limit change requested too early");
 
 		double max_k = sys_vars.require_find(("maxlimitprct"_n).value, "maxlimitprct is not defined")->value * 1e-10;

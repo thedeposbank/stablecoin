@@ -13,10 +13,12 @@ const symbol DUSD("DUSD", 2);
 const symbol DPS("DPS", 8);
 const symbol DBTC("DBTC", 8);
 const symbol BTC("BTC", 8);
+const symbol EOS("EOS", 4);
 
 const double dusdPrecision = 1e2;
 const double dpsPrecision  = 1e8;
 const double dbtcPrecision = 1e8;
+
 
 enum Switches : int64_t {
 	None               = 0,
@@ -29,16 +31,31 @@ const name ADMINACCOUNT("deposadmin11");
 const name DEVELACCOUNT("deposdevelop");
 const name ORACLEACC("deposoracle1");
 const name BITMEXACC("bitmex");
+const name EOSIOTOKEN("eosio.token");
 
-const name PERIODIC_SCOPE("periodic");
-const name SYSTEM_SCOPE("system");
-const name STAT_SCOPE("stat");
+const std::set<extended_symbol> approved_liquid_assets = {extended_symbol(DBTC, CUSTODIAN), extended_symbol(EOS, EOSIOTOKEN)};
+
+constexpr name PERIODIC_SCOPE = name{"periodic"};
+constexpr name SYSTEM_SCOPE   = name{"system"};
+constexpr name STAT_SCOPE     = name{"stat"};
+constexpr name DBONDS_SCOPE   = name{"dbonds"};
+
+#ifdef DEBUG
+const std::string bitmex_address("2NBMEXmdGcVYMg8PbpXdZzJNqU3zWpYmKxM");
+#else
+const std::string bitmex_address("3BMEXT6jkWpAEd89T6tRJfoouRt9Ta3U46");
+#endif
 
 using uint256_t = checksum256;
+using dbond_id_class = symbol_code;
 
 bool fail(const char* message) {
 	check(0, message);
 	return false;
+}
+
+bool is_approved_liquid_asset(extended_asset quantity) {
+	return approved_liquid_assets.find(quantity.get_extended_symbol()) != approved_liquid_assets.end();
 }
 
 bool validate_btc_address(const std::string& address, bool is_testnet) {
@@ -58,7 +75,7 @@ bool validate_btc_address(const std::string& address, bool is_testnet) {
 
 	for(int i = 0; address[i]; i++) {
 		if(address[i] & 0x80 || b58digits_map[address[i]] == -1)
-			return fail("Invalid bitcoin address: bad char");
+			return false; // fail("Invalid bitcoin address: bad char");
  
 		int c = b58digits_map[address[i]];
 		for(int j = 25; j--; ) {
@@ -67,14 +84,14 @@ bool validate_btc_address(const std::string& address, bool is_testnet) {
 			c >>= 8;
 		}
  
-		if(c) return fail("Invalid bitcoin address: address too long");
+		if(c) return false; // fail("Invalid bitcoin address: address too long");
 	}
 
 	uint8_t p2pkh_prefix = is_testnet ? 0x6f : 0x00;
 	uint8_t p2sh_prefix = is_testnet ? 0xc4 : 0x05;
 
 	if(addr_bin[0] != p2pkh_prefix && addr_bin[0] != p2sh_prefix)
-		return fail("Invalid bitcoin address: wrong prefix");
+		return false; // fail("Invalid bitcoin address: wrong prefix");
 
 	auto d1 = sha256((const char *)addr_bin.data(), 21);
 	auto d2 = sha256((const char *)d1.extract_as_byte_array().data(), 32).extract_as_byte_array();
@@ -84,7 +101,7 @@ bool validate_btc_address(const std::string& address, bool is_testnet) {
 	if(	d2[0] == addr_bin[21] && d2[1] == addr_bin[22] &&
 		d2[2] == addr_bin[23] && d2[3] == addr_bin[24]) return true;
 
-	return fail(msg.c_str());
+	return false; // fail(msg.c_str());
 }
 
 /*
