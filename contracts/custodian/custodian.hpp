@@ -88,17 +88,17 @@ public:
 			}
 		}
 		{
-			mintOrders mo(_self, DBTC.raw());
+			mintOrders mo(_self, DBTC.code().raw());
 			for(auto itr = mo.begin(); itr != mo.end();)
 				itr = mo.erase(itr);
 		}
 		{
-			mintOrders mo(_self, DUSD.raw());
+			mintOrders mo(_self, DUSD.code().raw());
 			for(auto itr = mo.begin(); itr != mo.end();)
 				itr = mo.erase(itr);
 		}
 		{
-			redeemOrders ro(_self, DBTC.raw());
+			redeemOrders ro(_self, DBTC.code().raw());
 			for(auto itr = ro.begin(); itr != ro.end();)
 				itr = ro.erase(itr);
 		}

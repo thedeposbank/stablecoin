@@ -89,7 +89,7 @@ void check_liquidity(bool internal_trigger) {
 	double soft_value_low = liq_trg / 2;
 	double soft_value_high = liq_trg * 1.5;
 	double hard_value_low = 0;
-	double hard_value_high = get_supply(DUSD); //liq_trg * 2;
+	double hard_value_high = get_bank_capital_value(); //liq_trg * 2;
 
 	double current_liq_pool = 1.0 * get_liquidity_pool_value();
 
@@ -144,7 +144,9 @@ void check_capital(bool internal_trigger){
 	print("\nbank_capital ", bank_capital);
 	print("\ndusd_supply ", dusd_supply);
 	print("\nsoft_margin ", soft_margin);
+	print("\nhard_margin ", hard_margin);
 	print("\nsoft_value ",  soft_value);
+	print("\nhard value ", hard_value);
 	print("\ninternal_trigger ", internal_trigger);
 	if(lt(1.0 * bank_capital, soft_margin))
 	{
@@ -181,8 +183,6 @@ void decay_used_volume(){
 	int64_t max_abs_vol = get_variable("maxdayvol", SYSTEM_SCOPE);
 	int64_t hourly_decay = int64_t((1.0 * max_abs_vol / 20) + 0.5); //20 is close to 24 but without 3 as a divisor
 
-	
-
 	int64_t volume_used = get_variable("volumeused", STAT_SCOPE);
 	int64_t sign = volume_used > 0 ? 1 : -1;
 	int64_t delta = n_hours * hourly_decay;
@@ -191,18 +191,20 @@ void decay_used_volume(){
 	print("\n=========decay volumeused");
 	print("\nvolume used", volume_used);
 	print("\nl_h, r_h, n_h ", l_hour, " ", r_hour, " ", n_hours);
-	print("\nupdated volume used", updated);
+	print("\nupdated volume used ", updated);
 
 	set_variable("volumeused"_n, updated, STAT_SCOPE);
 }
 
-void check_on_transfer(name from, name to, extended_asset quantity, const string & memo){
+void check_on_transfer(name from, name to, extended_asset quantity, const string & memo) {
 	decay_used_volume();
 	update_statistics_on_trade(from, to, quantity, memo);
 	check_limits(from, to, quantity, memo);
 }
 
-void check_on_system_change(bool internal_trigger=false){
+void check_on_system_change(bool internal_trigger=false) {
+	if(get_variable("settlement"_n, SYSTEM_SCOPE))
+		return;
 	decay_used_volume();
 	check_liquidity(internal_trigger);
 	check_leverage(internal_trigger);

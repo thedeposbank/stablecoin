@@ -47,7 +47,7 @@ bond_name2=DBONDB
 quantity_to_issue2="1.00 $bond_name2"
 holders_list='["'$emitent'", "'$counterparty'", "'$DBONDS'"]'
 
-payoff_amount2="88.00"
+payoff_amount2="50.00"
 payoff_quantity2="$payoff_amount2 $payoff_symbol"
 payoff_price2='{"quantity": "'$payoff_quantity2'", "contract": "'$payoff_contract'"}'
 
@@ -91,7 +91,8 @@ function erase_dbonds {
 	names="${names%??}"
 	names=${names:-$emitent}
 	args="[[$names], \"$bond_name\"]"
-	echo $args
+	cleos -u $API_URL push action $DBONDS erase "$args" -p $DBONDS@active
+	args="[[$names], \"$bond_name2\"]"
 	cleos -u $API_URL push action $DBONDS erase "$args" -p $DBONDS@active
 }
 
@@ -135,6 +136,6 @@ function transfer_to_sell {
 	from="$1"
 	to="$2"
 	qtty="$3"
-	bond_id=${4:-$bond_name2}
+	bond_id=${4:-$bond_name}
 	cleos -u $API_URL push action $DBONDS transfer '["'$from'", "'$to'", "'"$qtty"'", "sell '$bond_id' to '$counterparty'"]' -p $from@active
 }

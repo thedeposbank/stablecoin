@@ -87,6 +87,13 @@ public:
 			dblist.erase(existing);
 		}
 	}
+	ACTION unauthdbond(dbond_id_class dbond_id) {
+		require_auth(_self);
+		authorized_dbonds authdblist(_self, _self.value);
+		auto existing = authdblist.find(dbond_id.raw());
+		if(existing != authdblist.end())
+			authdblist.erase(existing);
+	}
 	/*
 	 * If not 'erase_variables':
 	 *   Erase accounts listed in 'names' for given token symbols.

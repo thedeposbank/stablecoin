@@ -15,6 +15,6 @@ export API_URL="http://jungle2.cryptolions.io"
 export dps_maximum_supply="1000000.00000000 DPS"
 
 export CPPFLAGS="-D_LIBCPP_NO_EXCEPTIONS -DDEBUG -DBITCOIN_TESTNET=true"
-wait_at_each_step=true
+#wait_at_each_step=true
 
 $HOME/bin/unlock_wallet

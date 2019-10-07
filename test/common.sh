@@ -2,13 +2,13 @@
 
 COMMON_SH=true
 
-if [[ -z "$ENV_SH" ]] ; then
-	source ./env.sh
-fi
+# if [[ -z "$ENV_SH" ]] ; then
+# 	source ./env.sh
+# fi
 
-if [[ -z "$FUNCTIONS_SH" ]] ; then
-	source ./functions.sh
-fi
+# if [[ -z "$FUNCTIONS_SH" ]] ; then
+# 	source ./functions.sh
+# fi
 
 # parameters: <variable name> <variable value>
 setvar() {
@@ -37,7 +37,7 @@ setdbonds() {
 }
 
 function erase_bank() {
-	sleep 3
+	sleep 1
 	names="["
 	for name in "$@"
 	do
@@ -50,7 +50,7 @@ function erase_bank() {
 }
 
 function erase_custody() {
-	sleep 3
+	sleep 1
 	names="["
 	for name in "$@"
 	do
@@ -62,7 +62,7 @@ function erase_custody() {
 }
 
 function transfer {
-	sleep 2
+	sleep 1
 	from="$1"
 	to="$2"
 	qtty="$3"
@@ -71,7 +71,7 @@ function transfer {
 }
 
 function transfer_eos {
-	sleep 2
+	sleep 1
 	from="$1"
 	to="$2"
 	qtty="$3"
@@ -80,7 +80,7 @@ function transfer_eos {
 }
 
 function transfer_dbtc {
-	sleep 2
+	sleep 1
 	from="$1"
 	to="$2"
 	qtty="$3"
@@ -89,19 +89,19 @@ function transfer_dbtc {
 }
 
 function create_dps() {
-	sleep 3
+	sleep 1
 	cleos -u $API_URL push action "$BANK_ACC" create "[\"$BANK_ACC\", \"$dps_maximum_supply\"]" -p $BANK_ACC@active
 }
 
 function listdpssale() {
-	sleep 3
+	sleep 1
 	dps_total_supply="$1"
 	dps_listed_price="$2"
 	cleos -u $API_URL push action "$BANK_ACC" listdpssale "[\"$dps_total_supply\", \"$dps_listed_price\"]" -p $ADMIN_ACC@active
 }
 
 function mint_dbtc() {
-	sleep 3
+	sleep 1
 	user=$1
 	amount=$2
 	txid=f51b9c6bf41bcdb44731b98d22e6265a177eb6f58575e1bd64cf891b45ff7877

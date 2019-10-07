@@ -35,6 +35,15 @@ function title() {
 	echo -e "\e[32m$hashes\e[0m"
 }
 
+function getvar() {
+	var_name=$1
+	scope=${2:-periodic}
+	ratio=${3:-100000000}
+	raw_num=`cleos -u $API_URL get table -l 100 -L $var_name -U $var_name thedeposbank $scope variables | jq -r .rows[].value`
+	raw_num=${raw_num:-0}
+	echo "$raw_num / $ratio" | bc -l
+}
+
 # print balances of collateral, nomination, payoff, dbond tokens of given account
 function get_balances {
 	account=$1
@@ -50,11 +59,37 @@ function get_balances {
 }
 
 function get_balance() {
-	
+	contract=$1
+	account=$2
+	token=$3
+	raw_num=`cleos -u $API_URL get table -L $token -U $token $contract $account accounts | jq -r .rows[].balance | cut -d ' ' -f 1`
+	echo ${raw_num:-0}
+}
+
+function get_dbond_price {
+	dbname=${1:-DBONDA}
+	raw_num=`cleos -u $API_URL get table -L $dbname -U $dbname $DBONDS $TESTACC fcdbond | jq -r .rows[].current_price.quantity | cut -d ' ' -f 1`
+	echo ${raw_num:-0}
 }
 
 function evaluate_assets() {
-
+	dusd_balance=`get_balance $BANK_ACC $BANK_ACC DUSD`
+	dbtc_balance=`get_balance $CUSTODIAN_ACC $BANK_ACC DBTC`
+	eos_balance=`get_balance eosio.token $BANK_ACC EOS`
+	dbond_balance=`get_balance $DBONDS $BANK_ACC DBONDA`
+	dbond2_balance=`get_balance $DBONDS $BANK_ACC DBONDB`
+	btcusd=`getvar btcusd`
+	eosusd=`getvar eosusd`
+	dbond_price=`get_dbond_price DBONDA`
+	dbond2_price=`get_dbond_price DBONDB`
+	dbtc_balance_usd=`echo "$dbtc_balance * $btcusd" | bc -l`
+	eos_balance_usd=`echo "$eos_balance * $eosusd" | bc -l`
+	dbond_balance_usd=`echo "$dbond_balance * $dbond_price" | bc -l`
+	dbond2_balance_usd=`echo "$dbond2_balance * $dbond2_price" | bc -l`
+	total_assets=`echo "$dbtc_balance_usd + $eos_balance_usd + $dbond_balance_usd + $dbond2_balance_usd" | bc -l`
+	liquid_assets=`echo "$dbtc_balance_usd + $eos_balance_usd" | bc -l`
+	echo "total assets: $total_assets  liquid assets: $liquid_assets"
+	echo "DUSD: $dusd_balance  DBTC: $dbtc_balance_usd  EOS: $eos_balance_usd  DBONDA: $dbond_balance_usd  DBONDB: $dbond2_balance_usd"
 }
 
 function sub {

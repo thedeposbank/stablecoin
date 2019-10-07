@@ -70,6 +70,14 @@ int64_t get_variable(const string & _name, const name & scope) {
 	return table.get(name(_name).value, (_name + string(" variable not found")).c_str()).value;
 }
 
+int64_t get_variable(name varname, name scope, int64_t default_value = 0) {
+	variables vars(BANKACCOUNT, scope.value);
+	auto itr = vars.find(varname.value);
+	if(itr == vars.end())
+		return default_value;
+	return itr->value;
+}
+
 void set_variable(name var_name, int64_t value, name SCOPE) {
 	check(SCOPE == STAT_SCOPE || SCOPE == SYSTEM_SCOPE || SCOPE == PERIODIC_SCOPE,
 		"only stat, system or periodic scope allowed");

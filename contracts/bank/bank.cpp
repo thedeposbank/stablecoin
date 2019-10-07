@@ -178,7 +178,6 @@ ACTION bank::issue( name to, asset quantity, string memo ) {
 	if(quantity.symbol == DUSD && memo != "supply balancing")
 	{
 		SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
-		check_on_system_change();
 	}
 	else
 		check_on_system_change(true);
