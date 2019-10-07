@@ -74,19 +74,26 @@ public:
 	[[eosio::on_notify("*::listprivord")]]
 	void on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buyer, extended_asset recieved_asset, bool is_sell);
 
+	/*
+	 * delete dbond from authorized dbonds list, after its deletion from dbonds contract tables
+	 */
+	[[eosio::on_notify("*::erase")]]
+	void ondbonderase(vector<name> holders, dbond_id_class dbond_id) {
+		name dbond_contract = get_first_receiver();
+		variables dbcontracts(_self, "dbonds"_n.value);
+		if(dbcontracts.find(dbond_contract.value) != dbcontracts.end()) {
+			authorized_dbonds dblist(_self, _self.value);
+			auto existing = dblist.find(dbond_id.raw());
+			if(existing != dblist.end()) {
+				dblist.erase(existing);
+			}
+		}
+	}
+
 	#ifdef DEBUG
 	/*
 	 * for erasing dbonds stuff
 	 */
-	[[eosio::on_notify("*::erase")]]
-	void ondbonderase(vector<name> owners, dbond_id_class dbond_id) {
-		name dbond_contract = get_first_receiver();
-		authorized_dbonds dblist(_self, _self.value);
-		auto existing = dblist.find(dbond_id.raw());
-		if(existing != dblist.end()) {
-			dblist.erase(existing);
-		}
-	}
 	ACTION unauthdbond(dbond_id_class dbond_id) {
 		require_auth(_self);
 		authorized_dbonds authdblist(_self, _self.value);
@@ -94,6 +101,7 @@ public:
 		if(existing != authdblist.end())
 			authdblist.erase(existing);
 	}
+
 	/*
 	 * If not 'erase_variables':
 	 *   Erase accounts listed in 'names' for given token symbols.

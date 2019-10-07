@@ -1,7 +1,7 @@
 #!/bin/bash
 
-. ./env.sh
-. ./functions.sh
+# . ./env.sh
+# . ./functions.sh
 
 now=`date +%s`
 now_plus_year=$((now+24*3600*365))

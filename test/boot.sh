@@ -20,7 +20,7 @@ erase_bank a1sttester12 dbondstest11 dbondstest12 deposdevelop depostest114 depo
 title "Clear custody tables"
 erase_custody a1sttester12 deposcustody depostest114 thedeposbank
 title "Clear dbond tables"
-erase_dbonds $emitent $counterparty
+erase_dbonds $emitent $counterparty $DBONDS
 
 title "Create tokens"
 cleos -u $API_URL push action $BANK_ACC create "[\"$BANK_ACC\", \"1000000000.00 DUSD\"]" -p $BANK_ACC@active
