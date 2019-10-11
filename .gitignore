@@ -1,3 +1,4 @@
 *.wasm
 *.abi
 contracts/install.sh
+feedback.txt
