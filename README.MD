@@ -1,7 +1,7 @@
 Depos is a stablecoin technology, the main idea behind is to collateralize stablecoin supply
 with fixed income instruments which produce interest rate and at the same time provide
 liquidity for holders to easily and in a trustless way exchange stablecoin to native token, say EOS.
-Fixed income instruments are of on-chain basis. This is possible due to [dBonds](www.dbonds.org)
+Fixed income instruments are of on-chain basis. This is possible due to [dBonds](https://www.dbonds.org)
 protocol of debt tokenization. Total supply of stablecoins 1:1 equals to the total value of the
 total collateral.
 
