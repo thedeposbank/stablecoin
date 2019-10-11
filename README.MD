@@ -23,5 +23,5 @@ that bank stores for withdrawals. On the other side, there is a major part of st
 and a minor part of stablecoins forming the bank capital. All profits and losses accumulated within the bank 
 capital, creating revenue of loss for the steakholders.
 
-To read more about the project, please, visit [Depos page](www.depos.io) or our [Medium page](www.medium.com/depos).
-Also join discussion in the [Telegram](www.t.me/deposbank)
+To read more about the project, please, visit [Depos page](https://www.depos.io) or our [Medium page](https://www.medium.com/depos).
+Also join discussion in the [Telegram](https://www.t.me/deposbank)
