@@ -87,6 +87,9 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 			check_on_system_change();
 			SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 		}
+		else if(match_memo("deposit")) {
+			accept_deposit(from, to, quantity, memo);
+		}
 		else
 			fail("transfer not allowed 3");
 	}
@@ -243,6 +246,35 @@ ACTION bank::listdpssale(asset target_total_supply, asset price) {
 	set_variable("dpssaleprice"_n, price.amount, SYSTEM_SCOPE);
 }
 
+ACTION bank::closedeposit(name from) {
+	require_auth(from);
+	deposits dep_table(_self, from.value);
+	auto it = dep_table.get(from.value, "no deposit on that name");
+	update_deposit(from);
+
+	SEND_INLINE_ACTION(*this, transfer, {{_self, "active"_n}}, {_self, from, it.deposit_value, "deposit is closed"});
+
+	dep_table.erase(it);
+
+}
+
+ACTION bank::wthdrdeposit(name from, extended_asset quantity) {
+	require_auth(from);
+	check(quantity.get_extended_symbol() == extended_symbol(DUSD, _self), "only DUSD are available for deposits");
+	deposits dep_table(_self, from.value);
+	auto it = dep_table.get(from.value, "no deposit on that name");
+	update_deposit(from);
+
+	SEND_INLINE_ACTION(*this, transfer, {{_self, "active"_n}}, {_self, from, quantity.quantity, "deposit partial withdrawal"});
+
+
+}
+
+ACTION bank::upddeposit(name deposit_owner) {
+	update_deposit(deposit_owner);
+}
+
+
 void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buyer, extended_asset recieved_asset, bool is_sell) {
 	authorized_dbonds dblist(_self, _self.value);
 	name dbond_contract = dblist.get(dbond_id.raw(), "unauthorized dbond").contract;
@@ -328,4 +360,65 @@ bool bank::is_authdbond_contract(name who) {
 	auto authdbonds_contracts = authdbonds.get_index<"contracts"_n>();
 	auto existing = authdbonds_contracts.find(who.value);
 	return existing != authdbonds_contracts.end();
+}
+
+int64_t left_exclusive_border(time_point time, int64_t factor_days, int64_t bias_days) {
+	int64_t msec_since_epoch = time.time_since_epoch()._count - 1;
+	int64_t msec_factor = factor_days * 24 * 60 * 60 * 1000000;
+	int64_t msec_bias = bias_days * 24 * 60 * 60 * 1000000;
+	return (msec_since_epoch - msec_bias) / msec_factor;
+}
+
+void bank::update_deposit(name deposit_owner) {
+	deposits dep_table(_self, deposit_owner.value);
+	auto it = dep_table.find(deposit_owner.value);
+	if( it == dep_table.end()) {
+		check(false, "this owner does not have a deposit");
+	}
+	else {
+		int factor_days = round(get_variable("dpstunittime", SYSTEM_SCOPE) / 1e8);
+		int64_t last_settl_border = left_exclusive_border(it->last_update_time, factor_days, 3);
+		int64_t cur_settl_border = left_exclusive_border(current_time_point(), factor_days, 3);
+		int64_t diff = cur_settl_border - last_settl_border;
+		check(diff >= 0, "Fatal error at update_deposit");
+		double rate = get_variable("dpstunitrate", SYSTEM_SCOPE) / 1e8;
+		
+		if(diff > 0) {
+			dep_table.modify(it, _self, [&](auto& row) {
+				row.deposit_amount += asset(round(row.lowest_value.amount * rate), row.deposit_amount.symbol);
+				row.lowest_value = row.deposit_amount;
+			});
+		}
+
+		if(diff > 1) {
+			double factor = pow(1 + rate, diff - 1);
+			dep_table.modify(it, _self, [&](auto& row) {
+				row.deposit_amount = asset(round(row.deposit_amount.amount * factor), row.deposit_amount.symbol);
+				row.lowest_value = row.deposit_amount;
+			});
+		}
+		dep_table.modify(it, _self, [&](auto row) {
+			row.last_update_time = current_time_point();
+			row.lowest_value = min(row.lowest_value, row.deposit_amount);
+		});
+	}
+}
+
+void bank::accept_deposit(name from, name to, asset quantity, string memo) {
+	deposits dep_table(_self, from.value);
+	auto it = dep_table.find(from.value);
+	if(it != dep_table.end()) {
+		dep_table.modify(it, _self, [&](auto& row) {
+			row.deposit_value += quantity;
+		});
+	}
+	else {
+		update_deposit(from);
+		dep_table.emplace(_self, [&](auto& row) {
+			row.user = from;
+			row.deposit_amount = quantity;
+			row.last_update_time = current_time_point();
+			row.lowest_value = quantity;
+		});
+	}
 }

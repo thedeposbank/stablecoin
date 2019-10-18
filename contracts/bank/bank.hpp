@@ -54,6 +54,13 @@ public:
 
 	ACTION blncsppl();
 
+	// deposit-connected actions
+	ACTION closedeposit(name from);
+
+	ACTION wthdrdeposit(name from, extended_asset quantity);
+
+	ACTION upddeposit(name deposit_owner);
+
 	/*
 	 * New token actions and methods
 	 */
@@ -175,6 +182,16 @@ private:
 		uint64_t secondary_key_1()const { return contract.value; }
 	};
 
+	//scope -- user
+	TABLE deposits_info {
+		name user;
+		asset deposit_value;
+		asset lowest_value;
+		time_point last_update_time;
+
+		uint64_t primary_key()const { return user.value; }
+	};
+
 	typedef eosio::multi_index< "accounts"_n, account > accounts;
 	typedef eosio::multi_index< "stat"_n, currency_stats > stats;
 	typedef eosio::multi_index<
@@ -196,7 +213,8 @@ private:
 		uint64_t primary_key()const { return var_name.value; }
 	};
 	
-	typedef eosio::multi_index< "variables"_n, variable > variables;
+	typedef eosio::multi_index<"variables"_n, variable> variables;
+	typedef eosio::multi_index<"deposits"_n, deposits_info> deposits;
 
 	void splitToDev(const asset& quantity, asset& toDev);
 
@@ -214,4 +232,6 @@ private:
 	bool is_authdbond_contract(name who);
 	void process_mint_DUSD_for_EOS(name buyer, asset eos_quantity);
 	void process_redeem_DUSD_for_EOS(name from, name to, asset quantity, string memo);
+	void accept_deposit(name from, name to, asset quantity, string memo);
+	void update_deposit(name deposit_owner);
 };
