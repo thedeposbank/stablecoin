@@ -87,7 +87,7 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 			check_on_system_change();
 			SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 		}
-		else if(match_memo("deposit")) {
+		else if(match_memo(memo, "deposit")) {
 			accept_deposit(from, to, quantity, memo);
 		}
 		else
