@@ -10,7 +10,7 @@
 . ./common.sh
 
 # define variables and shell wrappings for dbond actions
-. ./common_fcdb.sh
+. ./common_fc_real.sh
 
 
 ##################################################
@@ -82,94 +82,94 @@ title "Authorize dbond"
 authdbond
 pause
 title "Sell dbond to bank"
-must_pass "Sell dbond to bank" transfer_to_sell $emitent $DBONDS "1.00 $bond_name" $bond_name
+must_pass "Sell dbond to bank" transfer_to_sell $emitent $DBONDS "$quantity_to_issue" $bond_name
 pause
 
 evaluate_assets
 
-title "List DPS sale"
-must_pass "List DPS sale" listdpssale "5.00000000 DPS" "0.60 DUSD"
-pause
+# title "List DPS sale"
+# must_pass "List DPS sale" listdpssale "5.00000000 DPS" "0.60 DUSD"
+# pause
 
-title "Buy DPS, test getting change"
-must_pass "Buy DPS, test getting change" transfer $emitent $BANK_ACC "4.00 DUSD" "Buy DPS"
-pause
+# title "Buy DPS, test getting change"
+# must_pass "Buy DPS, test getting change" transfer $emitent $BANK_ACC "4.00 DUSD" "Buy DPS"
+# pause
 
-title "Test fail when DPS are not available"
-must_fail "Test fail when DPS are not available" transfer $emitent $BANK_ACC "5.00 DUSD" "Buy DPS"
-pause
+# title "Test fail when DPS are not available"
+# must_fail "Test fail when DPS are not available" transfer $emitent $BANK_ACC "5.00 DUSD" "Buy DPS"
+# pause
 
-title "Setting settlement to 0, enabling checks"
-setvar settlement 0
+# title "Setting settlement to 0, enabling checks"
+# setvar settlement 0
 
-evaluate_assets
+# evaluate_assets
 
-title "Mint DBTC"
-must_pass "Mint DBTC" mint_dbtc $TEST_ACC 20000
-pause
+# title "Mint DBTC"
+# must_pass "Mint DBTC" mint_dbtc $TEST_ACC 20000
+# pause
 
-title "Buy DUSD for DBTC"
-must_pass "Buy DUSD for DBTC" transfer_dbtc $TEST_ACC $BANK_ACC "0.00015000 DBTC" "Buy DUSD"
-pause
+# title "Buy DUSD for DBTC"
+# must_pass "Buy DUSD for DBTC" transfer_dbtc $TEST_ACC $BANK_ACC "0.00015000 DBTC" "Buy DUSD"
+# pause
 
-evaluate_assets
+# evaluate_assets
 
-title "Redeem DUSD for DBTC"
-must_pass "Redeem DUSD for DBTC" transfer $TEST_ACC $BANK_ACC "1.00 DUSD" "Redeem for DBTC"
-pause
+# title "Redeem DUSD for DBTC"
+# must_pass "Redeem DUSD for DBTC" transfer $TEST_ACC $BANK_ACC "1.00 DUSD" "Redeem for DBTC"
+# pause
 
-title "Buy DUSD for DBTC again"
-must_pass "Buy DUSD for DBTC again" transfer_dbtc $TEST_ACC $BANK_ACC "0.00015000 DBTC" "Buy DUSD"
-pause
+# title "Buy DUSD for DBTC again"
+# must_pass "Buy DUSD for DBTC again" transfer_dbtc $TEST_ACC $BANK_ACC "0.00015000 DBTC" "Buy DUSD"
+# pause
 
-title "Buy DUSD for EOS"
-must_pass "Buy DUSD for EOS" transfer_eos $TEST_ACC $BANK_ACC "0.2000 EOS" "Buy DUSD"
-pause
+# title "Buy DUSD for EOS"
+# must_pass "Buy DUSD for EOS" transfer_eos $TEST_ACC $BANK_ACC "0.2000 EOS" "Buy DUSD"
+# pause
 
-evaluate_assets
+# evaluate_assets
 
-title "Redeem DUSD for EOS"
-must_pass "Redeem DUSD for EOS" transfer $TEST_ACC $BANK_ACC "0.50 DUSD" "Redeem for EOS"
-pause
+# title "Redeem DUSD for EOS"
+# must_pass "Redeem DUSD for EOS" transfer $TEST_ACC $BANK_ACC "0.50 DUSD" "Redeem for EOS"
+# pause
 
-title "Buy DUSD for EOS again"
-#must_pass "Buy DUSD for EOS again" 
-transfer_eos $TEST_ACC $BANK_ACC "0.2000 EOS" "Buy DUSD"
-pause
+# title "Buy DUSD for EOS again"
+# #must_pass "Buy DUSD for EOS again" 
+# transfer_eos $TEST_ACC $BANK_ACC "0.2000 EOS" "Buy DUSD"
+# pause
 
-title "Try to buy more DUSD for EOS"
-#must_fail "Try to buy more DUSD for EOS" 
-transfer_eos $TEST_ACC $BANK_ACC "1.0000 EOS" "Buy DUSD"
-pause
+# title "Try to buy more DUSD for EOS"
+# #must_fail "Try to buy more DUSD for EOS" 
+# transfer_eos $TEST_ACC $BANK_ACC "1.0000 EOS" "Buy DUSD"
+# pause
 
-evaluate_assets
+# evaluate_assets
 
-title "Create dbond 2"
-initfcdb "$bond_spec2"
-pause
-title "Verify dbond 2"
-verifyfcdb $bond_name2
-pause
-title "Issue dbond 2"
-issuefcdb $bond_name2
-pause
-title "Authorize dbond 2"
-authdbond $bond_name2
-pause
-title "Sell dbond 2 to bank"
-transfer_to_sell $emitent $DBONDS "1.00 $bond_name2" $bond_name2
-pause
+# title "Create dbond 2"
+# initfcdb "$bond_spec2"
+# pause
+# title "Verify dbond 2"
+# verifyfcdb $bond_name2
+# pause
+# title "Issue dbond 2"
+# issuefcdb $bond_name2
+# pause
+# title "Authorize dbond 2"
+# authdbond $bond_name2
+# pause
+# title "Sell dbond 2 to bank"
+# transfer_to_sell $emitent $DBONDS "1.00 $bond_name2" $bond_name2
+# pause
 
-evaluate_assets
+# evaluate_assets
 
-title "Try to buy DUSD for EOS once more"
-#must_fail "Try to buy DUSD for EOS once more" 
-transfer_eos $TEST_ACC $BANK_ACC "1.0000 EOS" "Buy DUSD"
-pause
+# title "Try to buy DUSD for EOS once more"
+# #must_fail "Try to buy DUSD for EOS once more" 
+# transfer_eos $TEST_ACC $BANK_ACC "1.0000 EOS" "Buy DUSD"
+# pause
 
-title "Retire dbond 1"
-#must_pass "Retire dbond 1" 
-transfer $TEST_ACC $DBONDS "10.00 DUSD" "retire $bond_name"
-pause
+# title "Retire dbond 1"
+# #must_pass "Retire dbond 1" 
+# transfer $TEST_ACC $DBONDS "10.00 DUSD" "retire $bond_name"
+# pause
 
-evaluate_assets
+# evaluate_assets
