@@ -200,7 +200,7 @@ private:
 	};
 
 	//scope -- user
-	struct [[eosio::table]] deposits_info {
+	struct [[eosio::table("deposits")]] deposits_info {
 		asset deposit_amount;
 		asset lowest_value;
 		time_point last_update_time;

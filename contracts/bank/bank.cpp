@@ -24,15 +24,15 @@ void bank::transfer(name from, name to, asset quantity, string memo)
 
 	check_main_switch();
 
-#ifdef DEBUG
-		if(match_memo(memo, "debug"))
-		{
-			process_regular_transfer(from, to, quantity, memo);
-			check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
-			SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
-			return;
-		}
-#endif
+	#ifdef DEBUG
+	if(match_memo(memo, "debug"))
+	{
+		process_regular_transfer(from, to, quantity, memo);
+		check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
+		SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
+		return;
+	}
+	#endif
 
 	// if regular p2p transfer or special with no reaction needed
 	if((from != BANKACCOUNT && to != BANKACCOUNT) || memo == "deny") {
@@ -88,8 +88,15 @@ void bank::transfer(name from, name to, asset quantity, string memo)
 			SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 		}
 		else if(match_memo(memo, "deposit")) {
+			process_service_transfer(from, to, quantity, memo);
 			accept_deposit(from, to, quantity, memo);
 		}
+		#ifdef DEBUG
+		else if(match_memo(memo, "erase deposit")) {
+			deposits dep_singleton(_self, from.value);
+			dep_singleton.remove();
+		}
+		#endif
 		else
 			fail("transfer not allowed 3");
 	}
@@ -248,10 +255,10 @@ void bank::listdpssale(asset target_total_supply, asset price) {
 
 void bank::closedeposit(name from) {
 	require_auth(from);
+	update_deposit(from);
 	deposits dep_singleton(_self, from.value);
 	check(dep_singleton.exists(), "no deposit on that name");
 	auto d = dep_singleton.get();
-	update_deposit(from);
 
 	SEND_INLINE_ACTION(*this, transfer, {{_self, "active"_n}}, {_self, from, d.deposit_amount, "deposit is closed"});
 
@@ -362,8 +369,13 @@ bool bank::is_authdbond_contract(name who) {
 
 int64_t left_exclusive_border(time_point time, int64_t factor_days, int64_t bias_days) {
 	int64_t msec_since_epoch = time.time_since_epoch()._count - 1;
+	#ifdef DEBUG
+	int64_t msec_factor = factor_days * 12 * 1000000;
+	int64_t msec_bias = bias_days * 12 * 1000000;
+	#else
 	int64_t msec_factor = factor_days * 24 * 60 * 60 * 1000000;
 	int64_t msec_bias = bias_days * 24 * 60 * 60 * 1000000;
+	#endif
 	return (msec_since_epoch - msec_bias) / msec_factor;
 }
 
@@ -393,7 +405,6 @@ void bank::update_deposit(name deposit_owner) {
 	d.last_update_time = current_time_point();
 	d.lowest_value = min(d.lowest_value, d.deposit_amount);
 
-	dep_singleton.remove();
 	dep_singleton.set(d, _self);
 }
 
@@ -401,15 +412,14 @@ void bank::accept_deposit(name from, name to, asset quantity, string memo) {
 	deposits dep_singleton(_self, from.value);
 	deposits_info d;
 	if(dep_singleton.exists()) {
+		update_deposit(from);
 		d = dep_singleton.get();
-		dep_singleton.remove();
 		d.deposit_amount += quantity;
 	}
 	else {
-		update_deposit(from);
 		d.deposit_amount = quantity;
 		d.last_update_time = current_time_point();
-		d.lowest_value = quantity;
+		d.lowest_value = {0, DUSD};
 	}
 	dep_singleton.set(d, _self);
 }
