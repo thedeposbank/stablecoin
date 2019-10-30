@@ -265,14 +265,19 @@ void bank::closedeposit(name from) {
 	dep_singleton.remove();
 }
 
-void bank::wthdrdeposit(name from, extended_asset quantity) {
+void bank::wthdrdeposit(name from, asset quantity) {
 	require_auth(from);
-	check(quantity.get_extended_symbol() == extended_symbol(DUSD, _self), "only DUSD are available for deposits");
+	check(quantity.symbol == DUSD, "only DUSD are available for deposits");
+	update_deposit(from);
 	deposits dep_singleton(_self, from.value);
 	check(dep_singleton.exists(), "no deposit on that name");
+	auto d = dep_singleton.get();
+	check(quantity < d.deposit_amount, "withdrawal amount is too big");
+	d.deposit_amount -= quantity;
+	dep_singleton.set(d, _self);
 	update_deposit(from);
 
-	SEND_INLINE_ACTION(*this, transfer, {{_self, "active"_n}}, {_self, from, quantity.quantity, "deposit partial withdrawal"});
+	SEND_INLINE_ACTION(*this, transfer, {{_self, "active"_n}}, {_self, from, quantity, "deposit partial withdrawal"});
 }
 
 void bank::upddeposit(name deposit_owner) {

@@ -71,7 +71,7 @@ public:
 	void closedeposit(name from);
 
 	[[eosio::action]]
-	void wthdrdeposit(name from, extended_asset quantity);
+	void wthdrdeposit(name from, asset quantity);
 
 	[[eosio::action]]
 	void upddeposit(name deposit_owner);

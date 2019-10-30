@@ -32,12 +32,18 @@ check_deposit() {
 
 update_deposit() {
 	account=${1:-$TEST_ACC}
-	cleos -u $API_URL push action $BANK_ACC upddeposit "[\"$account\"]" -p $account@active	
+	cleos -u $API_URL push action $BANK_ACC upddeposit "[\"$account\"]" -p $account@active
 }
 
 close_deposit() {
 	account=${1:-$TEST_ACC}
-	cleos -u $API_URL push action $BANK_ACC closedeposit "[\"$account\"]" -p $account@active	
+	cleos -u $API_URL push action $BANK_ACC closedeposit "[\"$account\"]" -p $account@active
+}
+
+wthdrdeposit() {
+	account=${1:-$TEST_ACC}
+	amount=${2:-"1.00 DUSD"}
+	cleos -u $API_URL push action $BANK_ACC wthdrdeposit "[\"$account\", \"$amount\"]" -p $account@active
 }
 
 wait_periods() {
@@ -117,6 +123,15 @@ must_pass "update deposit" update_deposit $TEST_ACC
 
 title "check after top up and two periods"
 must_pass "two periods after top up" check_deposit $TEST_ACC "1152.01 DUSD" "1152.01 DUSD"
+
+title "withdrawal test"
+must_pass "withdrawal" wthdrdeposit $TEST_ACC "1100.00 DUSD"
+
+title "overdrawn withdrawal test"
+must_fail "overdrawn withdrawal" wthdrdeposit $TEST_ACC "1000.00 DUSD"
+
+title "check after withdrawal"
+must_pass "after withdrawal" check_deposit $TEST_ACC "52.01 DUSD" "52.01 DUSD"
 
 title "close deposit"
 must_pass "close deposit" close_deposit $TEST_ACC
