@@ -7,6 +7,7 @@
 #include <eosio/asset.hpp>
 #include <eosio/eosio.hpp>
 #include <eosio/system.hpp>
+#include <eosio/singleton.hpp>
 
 #include <stable.coin.hpp>
 #include <depostoken.hpp>
@@ -21,38 +22,59 @@ using std::vector;
 
 using namespace eosio;
 
-CONTRACT bank : private token {
+class [[eosio::contract]] bank : private token {
 public:
 	using token::token;
 
-	ACTION create( name issuer, asset maximum_supply) {
+	[[eosio::action]]
+	void create( name issuer, asset maximum_supply) {
 		token::create(issuer, maximum_supply);
 	}
-	ACTION issue( name to, asset quantity, string memo );
+	[[eosio::action]]
+	void issue( name to, asset quantity, string memo );
 
-	ACTION retire( asset quantity, string memo );
+	[[eosio::action]]
+	void retire( asset quantity, string memo );
 
-	ACTION transfer( name from, name to, asset quantity, string memo );
+	[[eosio::action]]
+	void transfer( name from, name to, asset quantity, string memo );
 
-	ACTION open( name owner, const symbol& symbol, name ram_payer ) {
+	[[eosio::action]]
+	void open( name owner, const symbol& symbol, name ram_payer ) {
 		token::open(owner, symbol, ram_payer);
 	}
 
-	ACTION close( name owner, const symbol& symbol ) {
+	[[eosio::action]]
+	void close( name owner, const symbol& symbol ) {
 		token::close(owner, symbol);
 	}
 
-	ACTION setvar(name scope, name varname, int64_t value);
+	[[eosio::action]]
+	void setvar(name scope, name varname, int64_t value);
 
-	ACTION delvar(name scope, name varname) {
+	[[eosio::action]]
+	void delvar(name scope, name varname) {
 		token::delvar(scope, varname);
 	}
 
-	ACTION authdbond(name dbond_contract, dbond_id_class dbond_id);
+	[[eosio::action]]
+	void authdbond(name dbond_contract, dbond_id_class dbond_id);
 
-	ACTION listdpssale(asset target_total_supply, asset price);
+	[[eosio::action]]
+	void listdpssale(asset target_total_supply, asset price);
 
-	ACTION blncsppl();
+	[[eosio::action]]
+	void blncsppl();
+
+	// deposit-connected actions
+	[[eosio::action]]
+	void closedeposit(name from);
+
+	[[eosio::action]]
+	void wthdrdeposit(name from, asset quantity);
+
+	[[eosio::action]]
+	void upddeposit(name deposit_owner);
 
 	/*
 	 * New token actions and methods
@@ -94,7 +116,8 @@ public:
 	/*
 	 * for erasing dbonds stuff
 	 */
-	ACTION unauthdbond(dbond_id_class dbond_id) {
+	[[eosio::action]]
+	void unauthdbond(dbond_id_class dbond_id) {
 		require_auth(_self);
 		authorized_dbonds authdblist(_self, _self.value);
 		auto existing = authdblist.find(dbond_id.raw());
@@ -110,7 +133,8 @@ public:
 	 * If 'erase_variables':
 	 *   Erase variables' table scopes, listed in 'names'.
 	 */
-	ACTION erase(const vector<name>& names, const vector<symbol_code>& tokens, bool erase_variables) {
+	[[eosio::action]]
+	void erase(const vector<name>& names, const vector<symbol_code>& tokens, bool erase_variables) {
 		require_auth(_self);
 
 		if(erase_variables) {
@@ -152,13 +176,13 @@ public:
 
 private:
 
-	TABLE account {
+	struct [[eosio::table]] account {
 		asset	 balance;
 
 		uint64_t primary_key()const { return balance.symbol.code().raw(); }
 	};
 
-	TABLE currency_stats {
+	struct [[eosio::table]] currency_stats {
 		asset	 supply;
 		asset	 max_supply;
 		name	 issuer;
@@ -167,12 +191,19 @@ private:
 	};
 
 	// scope -- _self.value
-	TABLE authorized_dbonds_info {
+	struct [[eosio::table]] authorized_dbonds_info {
 		dbond_id_class dbond;
 		name contract;
 
 		uint64_t primary_key()const { return dbond.raw(); }
 		uint64_t secondary_key_1()const { return contract.value; }
+	};
+
+	//scope -- user
+	struct [[eosio::table("deposits")]] deposits_info {
+		asset deposit_amount;
+		asset lowest_value;
+		time_point last_update_time;
 	};
 
 	typedef eosio::multi_index< "accounts"_n, account > accounts;
@@ -188,15 +219,16 @@ private:
 	 *   "system" -- for setting by admin
 	 *   "dbonds" -- for list of contracts, managing dbonds
 	 */
-	TABLE variable {
+	struct [[eosio::table]] variable {
 		name       var_name;
-		int64_t   value;
+		int64_t    value;
 		time_point mtime;
 
 		uint64_t primary_key()const { return var_name.value; }
 	};
 	
-	typedef eosio::multi_index< "variables"_n, variable > variables;
+	typedef eosio::multi_index<"variables"_n, variable> variables;
+	typedef eosio::singleton<"deposits"_n, deposits_info> deposits;
 
 	void splitToDev(const asset& quantity, asset& toDev);
 
@@ -214,4 +246,6 @@ private:
 	bool is_authdbond_contract(name who);
 	void process_mint_DUSD_for_EOS(name buyer, asset eos_quantity);
 	void process_redeem_DUSD_for_EOS(name from, name to, asset quantity, string memo);
+	void accept_deposit(name from, name to, asset quantity, string memo);
+	void update_deposit(name deposit_owner);
 };

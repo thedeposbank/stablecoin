@@ -18,21 +18,21 @@ using namespace eosio;
 using namespace std;
 using namespace dbonds;
 
-ACTION bank::transfer(name from, name to, asset quantity, string memo)
+void bank::transfer(name from, name to, asset quantity, string memo)
 {
 	check_transfer(from, to, quantity, memo);
 
 	check_main_switch();
 
-#ifdef DEBUG
-		if(match_memo(memo, "debug"))
-		{
-			process_regular_transfer(from, to, quantity, memo);
-			check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
-			SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
-			return;
-		}
-#endif
+	#ifdef DEBUG
+	if(match_memo(memo, "debug"))
+	{
+		process_regular_transfer(from, to, quantity, memo);
+		check_on_transfer(from, to, {quantity, BANKACCOUNT}, memo);
+		SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
+		return;
+	}
+	#endif
 
 	// if regular p2p transfer or special with no reaction needed
 	if((from != BANKACCOUNT && to != BANKACCOUNT) || memo == "deny") {
@@ -87,6 +87,16 @@ ACTION bank::transfer(name from, name to, asset quantity, string memo)
 			check_on_system_change();
 			SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 		}
+		else if(match_memo(memo, "deposit")) {
+			process_service_transfer(from, to, quantity, memo);
+			accept_deposit(from, to, quantity, memo);
+		}
+		#ifdef DEBUG
+		else if(match_memo(memo, "erase deposit")) {
+			deposits dep_singleton(_self, from.value);
+			dep_singleton.remove();
+		}
+		#endif
 		else
 			fail("transfer not allowed 3");
 	}
@@ -173,7 +183,7 @@ void bank::ontransfer(name from, name to, asset quantity, const string& memo) {
 	SEND_INLINE_ACTION(*this, blncsppl, {{_self, "active"_n}}, {});
 }
 
-ACTION bank::issue( name to, asset quantity, string memo ) {
+void bank::issue( name to, asset quantity, string memo ) {
 	token::issue(to, quantity, memo);
 	if(quantity.symbol == DUSD && memo != "supply balancing")
 	{
@@ -183,7 +193,7 @@ ACTION bank::issue( name to, asset quantity, string memo ) {
 		check_on_system_change(true);
 }
 
-ACTION bank::retire( asset quantity, string memo ) {
+void bank::retire( asset quantity, string memo ) {
 	token::retire(quantity, memo);
 	if(memo != "supply balancing")
 	{
@@ -195,7 +205,7 @@ ACTION bank::retire( asset quantity, string memo ) {
 		check_on_system_change(true);
 }
 
-ACTION bank::setvar(name scope, name varname, int64_t value) {
+void bank::setvar(name scope, name varname, int64_t value) {
 	token::setvar(scope, varname, value);
 
 	// balance DUSD supply:
@@ -213,7 +223,7 @@ ACTION bank::setvar(name scope, name varname, int64_t value) {
 	// 	check_on_system_change(true); // change this to false
 }
 
-ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
+void bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
 	require_auth(ADMINACCOUNT);
 	authorized_dbonds dblist(_self, _self.value);
 	auto existing = dblist.find(dbond_id.raw());
@@ -229,7 +239,7 @@ ACTION bank::authdbond(name dbond_contract, dbond_id_class dbond_id) {
 	).send();
 }
 
-ACTION bank::listdpssale(asset target_total_supply, asset price) {
+void bank::listdpssale(asset target_total_supply, asset price) {
 	require_auth(ADMINACCOUNT);
 	check(target_total_supply.symbol == DPS, "as target_supply only DPS allowed");
 	check(price.symbol == DUSD, "as price only DUSD allowed");
@@ -242,6 +252,38 @@ ACTION bank::listdpssale(asset target_total_supply, asset price) {
 
 	set_variable("dpssaleprice"_n, price.amount, SYSTEM_SCOPE);
 }
+
+void bank::closedeposit(name from) {
+	require_auth(from);
+	update_deposit(from);
+	deposits dep_singleton(_self, from.value);
+	check(dep_singleton.exists(), "no deposit on that name");
+	auto d = dep_singleton.get();
+
+	SEND_INLINE_ACTION(*this, transfer, {{_self, "active"_n}}, {_self, from, d.deposit_amount, "deposit is closed"});
+
+	dep_singleton.remove();
+}
+
+void bank::wthdrdeposit(name from, asset quantity) {
+	require_auth(from);
+	check(quantity.symbol == DUSD, "only DUSD are available for deposits");
+	update_deposit(from);
+	deposits dep_singleton(_self, from.value);
+	check(dep_singleton.exists(), "no deposit on that name");
+	auto d = dep_singleton.get();
+	check(quantity < d.deposit_amount, "withdrawal amount is too big");
+	d.deposit_amount -= quantity;
+	dep_singleton.set(d, _self);
+	update_deposit(from);
+
+	SEND_INLINE_ACTION(*this, transfer, {{_self, "active"_n}}, {_self, from, quantity, "deposit partial withdrawal"});
+}
+
+void bank::upddeposit(name deposit_owner) {
+	update_deposit(deposit_owner);
+}
+
 
 void bank::on_fcdb_trade_request(dbond_id_class dbond_id, name seller, name buyer, extended_asset recieved_asset, bool is_sell) {
 	authorized_dbonds dblist(_self, _self.value);
@@ -293,7 +335,7 @@ void bank::splitToDev(const asset& quantity, asset& toDev) {
 	toDev = asset(std::round(quantity.amount * devRatio), quantity.symbol);
 }
 
-ACTION bank::blncsppl() {
+void bank::blncsppl() {
 	// TODO: consider in-flight redeem transactions to bitmex account
 
 	int64_t targetSupplyCents = get_bank_assets_value();
@@ -328,4 +370,61 @@ bool bank::is_authdbond_contract(name who) {
 	auto authdbonds_contracts = authdbonds.get_index<"contracts"_n>();
 	auto existing = authdbonds_contracts.find(who.value);
 	return existing != authdbonds_contracts.end();
+}
+
+int64_t left_exclusive_border(time_point time, int64_t factor_days, int64_t bias_days) {
+	int64_t msec_since_epoch = time.time_since_epoch()._count - 1;
+	#ifdef DEBUG
+	int64_t msec_factor = factor_days * 12 * 1000000;
+	int64_t msec_bias = bias_days * 12 * 1000000;
+	#else
+	int64_t msec_factor = factor_days * 24 * 60 * 60 * 1000000;
+	int64_t msec_bias = bias_days * 24 * 60 * 60 * 1000000;
+	#endif
+	return (msec_since_epoch - msec_bias) / msec_factor;
+}
+
+void bank::update_deposit(name deposit_owner) {
+	deposits dep_singleton(_self, deposit_owner.value);
+	check(dep_singleton.exists(), "no deposit on that name");
+	auto d = dep_singleton.get();
+
+	int factor_days = round(get_variable("dpstunittime", SYSTEM_SCOPE) / 1e8);
+	int64_t last_settl_border = left_exclusive_border(d.last_update_time, factor_days, 3);
+	int64_t cur_settl_border = left_exclusive_border(current_time_point(), factor_days, 3);
+	int64_t diff = cur_settl_border - last_settl_border;
+	check(diff >= 0, "Fatal error at update_deposit");
+	double rate = get_variable("dpstunitrate", SYSTEM_SCOPE) / 1e8;
+	
+	if(diff > 0) {
+		d.deposit_amount += asset(round(d.lowest_value.amount * rate), d.deposit_amount.symbol);
+		d.lowest_value = d.deposit_amount;
+	}
+
+	if(diff > 1) {
+		double factor = pow(1 + rate, diff - 1);
+		d.deposit_amount = asset(round(d.deposit_amount.amount * factor), d.deposit_amount.symbol);
+		d.lowest_value = d.deposit_amount;
+	}
+
+	d.last_update_time = current_time_point();
+	d.lowest_value = min(d.lowest_value, d.deposit_amount);
+
+	dep_singleton.set(d, _self);
+}
+
+void bank::accept_deposit(name from, name to, asset quantity, string memo) {
+	deposits dep_singleton(_self, from.value);
+	deposits_info d;
+	if(dep_singleton.exists()) {
+		update_deposit(from);
+		d = dep_singleton.get();
+		d.deposit_amount += quantity;
+	}
+	else {
+		d.deposit_amount = quantity;
+		d.last_update_time = current_time_point();
+		d.lowest_value = {0, DUSD};
+	}
+	dep_singleton.set(d, _self);
 }
